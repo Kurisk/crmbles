@@ -1,0 +1,197 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Account Manager | CRMbles{% endblock %}
+{% block header_title %}Account Manager{% endblock %}
+{% block header_subtitle %}Create accounts and control which CRM features each person can use.{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="openCreateUserModal()">
+    <i class="fa-solid fa-user-plus"></i> New Account
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+        <h3 class="card-title" style="margin-bottom: 0;"><i class="fa-solid fa-users-gear" style="color: var(--primary); margin-right: 8px;"></i> Workspace Accounts</h3>
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">Total accounts: <strong>{{ user_rows|length }}</strong></span>
+    </div>
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; min-width: 880px; text-align: left;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); background-color: rgba(255,255,255,0.01); font-size: 0.85rem;">
+                    <th style="padding: 14px 18px;">Account</th>
+                    <th style="padding: 14px 18px;">Role</th>
+                    <th style="padding: 14px 18px;">Allowed Features</th>
+                    <th style="padding: 14px 18px;">Status</th>
+                    <th style="padding: 14px 18px; text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in user_rows %}
+                {% with account=row.account %}
+                <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.85rem;">
+                    <td style="padding: 16px 18px;">
+                        <div style="font-weight: 700; color: var(--text-primary);">{{ account.username }}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">{{ account.email|default:"No email" }}</div>
+                    </td>
+                    <td style="padding: 16px 18px;">
+                        <span class="badge {% if account.profile.is_manager %}badge-success{% else %}badge-info{% endif %}">
+                            {{ account.profile.get_role_display }}
+                        </span>
+                    </td>
+                    <td style="padding: 16px 18px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                            {% if account.profile.is_manager or account.profile.can_access_projects %}<span class="badge badge-info">Projects</span>{% endif %}
+                            {% if account.profile.is_manager or account.profile.can_access_documents %}<span class="badge badge-info">Documents</span>{% endif %}
+                            {% if account.profile.is_manager or account.profile.can_access_vendors %}<span class="badge badge-info">Vendors</span>{% endif %}
+                            {% if account.profile.is_manager or account.profile.can_access_finance %}<span class="badge badge-info">Finance</span>{% endif %}
+                            {% if account.profile.is_manager or account.profile.can_manage_accounts %}<span class="badge badge-warning">Accounts</span>{% endif %}
+                        </div>
+                    </td>
+                    <td style="padding: 16px 18px;">
+                        <span class="badge {% if account.is_active %}badge-success{% else %}badge-danger{% endif %}">
+                            {% if account.is_active %}Active{% else %}Disabled{% endif %}
+                        </span>
+                    </td>
+                    <td style="padding: 16px 18px; text-align: right;">
+                        <button class="btn btn-secondary btn-sm" onclick="openEditUserModal(this)"
+                                data-id="{{ account.id }}"
+                                data-username="{{ account.username|escapejs }}"
+                                data-email="{{ account.email|escapejs }}"
+                                data-first-name="{{ account.first_name|escapejs }}"
+                                data-last-name="{{ account.last_name|escapejs }}"
+                                data-role="{{ account.profile.role }}"
+                                data-active="{% if account.is_active %}true{% else %}false{% endif %}"
+                                data-projects="{% if account.profile.can_access_projects %}true{% else %}false{% endif %}"
+                                data-documents="{% if account.profile.can_access_documents %}true{% else %}false{% endif %}"
+                                data-vendors="{% if account.profile.can_access_vendors %}true{% else %}false{% endif %}"
+                                data-finance="{% if account.profile.can_access_finance %}true{% else %}false{% endif %}"
+                                data-accounts="{% if account.profile.can_manage_accounts %}true{% else %}false{% endif %}"
+                                data-memberships="{{ row.membership_data }}">
+                            <i class="fa-regular fa-pen-to-square"></i> Edit
+                        </button>
+                    </td>
+                </tr>
+                {% endwith %}
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="padding: 40px; text-align: center; color: var(--text-muted);">No user accounts found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal-overlay" id="createUserModal">
+    <div class="modal-content" style="max-width: 560px;">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-user-plus" style="color: var(--primary); margin-right: 8px;"></i> Create Account</h3>
+            <span class="modal-close" onclick="closeCreateUserModal()">&times;</span>
+        </div>
+        <form action="{% url 'accounts:user_create' %}" method="POST">
+            {% csrf_token %}
+            {% include 'accounts/user_form_fields.html' with prefix='create' is_create=True %}
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateUserModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Account</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="editUserModal">
+    <div class="modal-content" style="max-width: 560px;">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-user-gear" style="color: var(--primary); margin-right: 8px;"></i> Edit Account</h3>
+            <span class="modal-close" onclick="closeEditUserModal()">&times;</span>
+        </div>
+        <form id="editUserForm" method="POST" action="">
+            {% csrf_token %}
+            {% include 'accounts/user_form_fields.html' with prefix='edit' is_create=False %}
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function setCheckbox(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.checked = value === true || value === 'true';
+    }
+
+    function togglePermissionPanel(prefix) {
+        const role = document.getElementById(`${prefix}Role`).value;
+        const panel = document.getElementById(`${prefix}PermissionPanel`);
+        panel.style.opacity = role === 'MANAGER' ? '0.45' : '1';
+        panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            if (cb.name !== 'is_active') cb.disabled = role === 'MANAGER';
+        });
+    }
+
+    function openCreateUserModal() {
+        const modal = document.getElementById('createUserModal');
+        modal.style.display = 'flex';
+        togglePermissionPanel('create');
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function closeCreateUserModal() {
+        const modal = document.getElementById('createUserModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function openEditUserModal(button) {
+        const id = button.dataset.id;
+        document.getElementById('editUserForm').action = `/accounts/users/${id}/update/`;
+        document.getElementById('editUsername').value = button.dataset.username;
+        document.getElementById('editEmail').value = button.dataset.email;
+        document.getElementById('editFirstName').value = button.dataset.firstName;
+        document.getElementById('editLastName').value = button.dataset.lastName;
+        document.getElementById('editRole').value = button.dataset.role;
+        document.getElementById('editPassword').value = '';
+        setCheckbox('editIsActive', button.dataset.active);
+        setCheckbox('editProjects', button.dataset.projects);
+        setCheckbox('editDocuments', button.dataset.documents);
+        setCheckbox('editVendors', button.dataset.vendors);
+        setCheckbox('editFinance', button.dataset.finance);
+        setCheckbox('editAccounts', button.dataset.accounts);
+        document.querySelectorAll('.edit-business-assignment').forEach(cb => cb.checked = false);
+        document.querySelectorAll('.edit-business-permission').forEach(cb => cb.checked = false);
+        (button.dataset.memberships || '').split(';').filter(Boolean).forEach(record => {
+            const parts = record.split(',');
+            const businessId = parts[0];
+            setCheckbox(`editBusiness${businessId}`, true);
+            setCheckbox(`editBusiness${businessId}Projects`, parts[1] === '1');
+            setCheckbox(`editBusiness${businessId}Documents`, parts[2] === '1');
+            setCheckbox(`editBusiness${businessId}Vendors`, parts[3] === '1');
+            setCheckbox(`editBusiness${businessId}Finance`, parts[4] === '1');
+            setCheckbox(`editBusiness${businessId}Accounts`, parts[5] === '1');
+        });
+        togglePermissionPanel('edit');
+        const modal = document.getElementById('editUserModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function closeEditUserModal() {
+        const modal = document.getElementById('editUserModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    window.addEventListener('click', (event) => {
+        const createModal = document.getElementById('createUserModal');
+        const editModal = document.getElementById('editUserModal');
+        if (event.target === createModal) closeCreateUserModal();
+        if (event.target === editModal) closeEditUserModal();
+    });
+</script>
+{% endblock %}

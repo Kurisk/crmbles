@@ -1,0 +1,1572 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Finance & Invoicing | CRMbles{% endblock %}
+
+{% block header_title %}Financial Command Center{% endblock %}
+{% block header_subtitle %}Track invoiced revenue, operating expenses, and personal out-of-pocket capital injections.{% endblock %}
+
+{% block header_actions %}
+{% if request.user.profile.is_manager %}
+<button class="btn btn-secondary" onclick="openManageExpenseSetupModal()">
+    <i class="fa-solid fa-sliders" style="color: var(--info);"></i> Expense Setup
+</button>
+{% endif %}
+<button class="btn btn-secondary" onclick="openManageCategoriesModal()">
+    <i class="fa-solid fa-tags" style="color: var(--success);"></i> Manage Categories
+</button>
+<button class="btn btn-secondary" onclick="openNewInjectionModal()">
+    <i class="fa-solid fa-hand-holding-dollar" style="color: var(--info);"></i> Add Capital
+</button>
+<button class="btn btn-secondary" onclick="openNewExpenseModal()">
+    <i class="fa-solid fa-receipt" style="color: var(--warning);"></i> Record Expense
+</button>
+<button class="btn btn-primary" onclick="openNewInvoiceModal()">
+    <i class="fa-solid fa-file-invoice" style="color: #fff;"></i> Create Invoice
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Premium Financial Metrics Grid -->
+<div class="metrics-grid" style="margin-bottom: 24px;">
+    <!-- Metric 1: Collected Cash -->
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--success-bg); color: var(--success); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-money-bill-trend-up"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">${{ total_collected|floatformat:2 }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Collected Revenue <span style="color: var(--text-muted); font-size: 0.65rem;">(of ${{ total_invoiced|floatformat:2 }})</span></span>
+        </div>
+    </div>
+    
+    <!-- Metric 2: Total Operating Expenses -->
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--warning-bg); color: var(--warning); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-wallet"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">${{ total_expenses|floatformat:2 }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Operating Expenses</span>
+        </div>
+    </div>
+
+    <!-- Metric 3: Net Cash flow -->
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--primary-glow); color: var(--primary); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-scale-balanced"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem; color: {% if net_profit >= 0 %}var(--success){% else %}var(--danger){% endif %};">
+                ${{ net_profit|floatformat:2 }}
+            </span>
+            <span class="metric-label" style="font-size: 0.75rem;">Net Operating Cash</span>
+        </div>
+    </div>
+
+    <!-- Metric 4: External Funding / Unpaid Loans -->
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--info-bg); color: var(--info); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-building-columns"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">${{ injected_capital|floatformat:2 }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Injected Capital <span style="color: var(--danger); font-size: 0.68rem; font-weight: 700;">(Unpaid Loans: ${{ outstanding_loans|floatformat:2 }})</span></span>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Controls Section -->
+<div style="display: flex; gap: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+    <button class="btn btn-primary" id="btnInvoiceTab" onclick="switchFinanceTab('invoices')">
+        <i class="fa-solid fa-file-invoice"></i> Invoices & Client Revenue
+    </button>
+    <button class="btn btn-secondary" id="btnExpenseTab" onclick="switchFinanceTab('expenses')">
+        <i class="fa-solid fa-receipt"></i> Business Expenses
+    </button>
+    <button class="btn btn-secondary" id="btnCapitalTab" onclick="switchFinanceTab('capital')">
+        <i class="fa-solid fa-hand-holding-dollar"></i> External Capital & Loans
+    </button>
+</div>
+
+<!-- CONTAINER 1: INVOICES -->
+<div id="invoiceTabContainer" class="card" style="display: block; padding: 0; overflow: hidden; background-color: var(--bg-card); border-color: var(--border-color);">
+    <div style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <h3 class="card-title" style="margin-bottom: 0;"><i class="fa-solid fa-file-invoice" style="color: var(--primary); margin-right: 6px;"></i> Invoices Directory</h3>
+        <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
+            <input type="text" class="form-control" id="invoiceSearch" value="{{ invoice_query }}" placeholder="Search or click a value below..." autocomplete="off" oninput="filterFinanceTable('invoice')" style="font-size: 0.8rem; padding: 8px 12px; min-width: 260px; margin-bottom: 0;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="clearFinanceFilter('invoice')" style="padding: 8px 12px;">Clear</button>
+        </div>
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">Total entries: <strong>{{ invoices.count }}</strong></span>
+    </div>
+    <div style="overflow-x: auto; width: 100%;">
+        <table class="table" data-finance-filter-table="invoice" style="width: 100%; border-collapse: collapse; text-align: left; min-width: 800px; margin-bottom: 0;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); background-color: rgba(255, 255, 255, 0.01); font-size: 0.85rem;">
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Date</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Client</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Title</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Linked Vendor</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Linked Project</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Status</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary); text-align: right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody id="invoiceRows">
+                {% for inv in invoices %}
+                <tr style="border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color var(--transition-fast); font-size: 0.85rem;" 
+                    onclick="openEditInvoiceModal(this)"
+                    data-id="{{ inv.id }}"
+                    data-client="{{ inv.client_name }}"
+                    data-title="{{ inv.title }}"
+                    data-project="{% if inv.project %}{{ inv.project.id }}{% endif %}"
+                    data-vendor="{% if inv.vendor %}{{ inv.vendor.id }}{% endif %}"
+                    data-amount="{{ inv.amount }}"
+                    data-date="{{ inv.invoice_date|date:'Y-m-d' }}"
+                    data-due="{% if inv.due_date %}{{ inv.due_date|date:'Y-m-d' }}{% endif %}"
+                    data-status="{{ inv.status }}"
+                    data-notes="{{ inv.notes }}"
+                    data-line-items='[{% for item in inv.line_items.all %}{"name":"{{ item.name|escapejs }}","amount":"{{ item.amount }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                    onmouseover="this.style.backgroundColor='rgba(255, 255, 255, 0.02)'" 
+                    onmouseout="this.style.backgroundColor='transparent'">
+                    <td style="padding: 14px 18px; color: var(--text-secondary);">{{ inv.invoice_date|date:"M d, Y" }}</td>
+                    <td style="padding: 14px 18px; font-weight: 700; color: var(--text-primary);">{{ inv.client_name }}</td>
+                    <td style="padding: 14px 18px; color: var(--text-secondary);">{{ inv.title }}</td>
+                    <td style="padding: 14px 18px;">
+                        {% if inv.vendor %}
+                        <span style="font-weight: 600; font-size: 0.78rem; color: var(--info); border: 1px solid rgba(14, 165, 233, 0.2); background-color: var(--info-bg); padding: 2px 8px; border-radius: 4px;">
+                            <i class="fa-solid fa-store" style="margin-right: 4px;"></i> {{ inv.vendor.name }}
+                        </span>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.78rem; font-style: italic;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 14px 18px;">
+                        {% if inv.project %}
+                        <span style="font-weight: 600; font-size: 0.78rem; background-color: var(--primary-glow); color: var(--primary); padding: 2px 8px; border-radius: 4px;">
+                            <i class="fa-solid fa-diagram-project" style="margin-right: 4px;"></i> {{ inv.project.name }}
+                        </span>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.78rem; font-style: italic;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 14px 18px;">
+                        <span class="badge {% if inv.status == 'PAID' %}badge-success{% elif inv.status == 'SENT' %}badge-info{% elif inv.status == 'OVERDUE' %}badge-danger{% else %}badge-warning{% endif %}" style="font-size: 0.7rem; padding: 2px 8px;">
+                            {{ inv.get_status_display }}
+                        </span>
+                    </td>
+                    <td style="padding: 14px 18px; font-weight: 700; color: var(--success); text-align: right;">${{ inv.amount|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px 0; color: var(--text-muted); font-style: italic;">
+                        No invoices generated. Create a new client invoice to get started!
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- CONTAINER 2: EXPENSES -->
+<div id="expenseTabContainer" class="card" style="display: none; padding: 0; overflow: hidden; background-color: var(--bg-card); border-color: var(--border-color);">
+    <div style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <h3 class="card-title" style="margin-bottom: 0;"><i class="fa-solid fa-receipt" style="color: var(--warning); margin-right: 6px;"></i> Business Expenses</h3>
+        <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
+            <input type="text" class="form-control" id="expenseSearch" placeholder="Search or click a value below..." autocomplete="off" oninput="filterFinanceTable('expense')" style="font-size: 0.8rem; padding: 8px 12px; min-width: 260px; margin-bottom: 0;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="clearFinanceFilter('expense')" style="padding: 8px 12px;">Clear</button>
+        </div>
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">Total entries: <strong>{{ expenses.count }}</strong></span>
+    </div>
+    <div style="overflow-x: auto; width: 100%;">
+        <table class="table" data-finance-filter-table="expense" style="width: 100%; border-collapse: collapse; text-align: left; min-width: 800px; margin-bottom: 0;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); background-color: rgba(255, 255, 255, 0.01); font-size: 0.85rem;">
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Date</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Expense Title</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Category</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Linked Vendor</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Status</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary); text-align: right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody id="expenseRows">
+                {% for exp in expenses %}
+                <tr style="border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color var(--transition-fast); font-size: 0.85rem;" 
+                    onclick="openEditExpenseModal(this)"
+                    data-id="{{ exp.id }}"
+                    data-title="{{ exp.title }}"
+                    data-amount="{{ exp.amount }}"
+                    data-date="{{ exp.expense_date|date:'Y-m-d' }}"
+                    data-category="{% if exp.category %}{{ exp.category.id }}{% endif %}"
+                    data-industry-item="{% if exp.industry_item %}{{ exp.industry_item.id }}{% endif %}"
+                    data-status="{{ exp.status }}"
+                    data-vendor="{% if exp.vendor %}{{ exp.vendor.id }}{% endif %}"
+                    data-fallback="{{ exp.vendor_name_fallback }}"
+                    data-notes="{{ exp.notes }}"
+                    data-line-items='[{% for item in exp.line_items.all %}{"name":"{{ item.name|escapejs }}","amount":"{{ item.amount }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                    onmouseover="this.style.backgroundColor='rgba(255, 255, 255, 0.02)'" 
+                    onmouseout="this.style.backgroundColor='transparent'">
+                    <td style="padding: 14px 18px; color: var(--text-secondary);">{{ exp.expense_date|date:"M d, Y" }}</td>
+                    <td style="padding: 14px 18px; font-weight: 700; color: var(--text-primary);">
+                        {{ exp.title }}
+                        {% if exp.industry_item %}
+                        <div style="font-size: 0.7rem; color: var(--text-muted); font-weight: 500; margin-top: 2px;">
+                            {{ exp.industry_item.industry }} / {{ exp.industry_item.name }}
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 14px 18px;">
+                        {% if exp.category %}
+                        <span style="font-size: 0.75rem; color: {{ exp.category.color }}; background-color: {{ exp.category.color }}15; border: 1px solid {{ exp.category.color }}30; padding: 2px 8px; border-radius: 4px; font-weight: 600;">
+                            {{ exp.category.name }}
+                        </span>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">Uncategorized</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 14px 18px;">
+                        {% if exp.vendor %}
+                        <span style="font-weight: 600; font-size: 0.78rem; color: var(--info); border: 1px solid rgba(14, 165, 233, 0.2); background-color: var(--info-bg); padding: 2px 8px; border-radius: 4px;">
+                            <i class="fa-solid fa-store" style="margin-right: 4px;"></i> {{ exp.vendor.name }}
+                        </span>
+                        {% elif exp.vendor_name_fallback %}
+                        <span style="color: var(--text-secondary); font-size: 0.78rem; font-weight: 500;">
+                            {{ exp.vendor_name_fallback }} <span style="color: var(--text-muted); font-size: 0.7rem; font-style: italic;">(Unregistered)</span>
+                        </span>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.78rem; font-style: italic;">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 14px 18px;">
+                        <span class="badge {% if exp.status == 'PAID' %}badge-success{% else %}badge-warning{% endif %}" style="font-size: 0.7rem; padding: 2px 8px;">
+                            {{ exp.get_status_display }}
+                        </span>
+                    </td>
+                    <td style="padding: 14px 18px; font-weight: 700; color: var(--danger); text-align: right;">${{ exp.amount|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 40px 0; color: var(--text-muted); font-style: italic;">
+                        No operational expenses logged. File invoices and track material costs here.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- CONTAINER 3: CAPITAL INJECTIONS -->
+<div id="capitalTabContainer" class="card" style="display: none; padding: 0; overflow: hidden; background-color: var(--bg-card); border-color: var(--border-color);">
+    <div style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <h3 class="card-title" style="margin-bottom: 0;"><i class="fa-solid fa-hand-holding-dollar" style="color: var(--info); margin-right: 6px;"></i> Capital Injections & Debt Tracker</h3>
+        <div style="display: flex; gap: 8px; align-items: center; margin-left: auto;">
+            <input type="text" class="form-control" id="capitalSearch" placeholder="Search or click a value below..." autocomplete="off" oninput="filterFinanceTable('capital')" style="font-size: 0.8rem; padding: 8px 12px; min-width: 260px; margin-bottom: 0;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="clearFinanceFilter('capital')" style="padding: 8px 12px;">Clear</button>
+        </div>
+        <span style="font-size: 0.8rem; color: var(--text-secondary);">Total entries: <strong>{{ injections.count }}</strong></span>
+    </div>
+    <div style="overflow-x: auto; width: 100%;">
+        <table class="table" data-finance-filter-table="capital" style="width: 100%; border-collapse: collapse; text-align: left; min-width: 800px; margin-bottom: 0;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); background-color: rgba(255, 255, 255, 0.01); font-size: 0.85rem;">
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Date</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Funding Source</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Funding Type</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">State / Debt Status</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">Notes</th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary); text-align: right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody id="capitalRows">
+                {% for cap in injections %}
+                <tr style="border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color var(--transition-fast); font-size: 0.85rem;" 
+                    onclick="openEditInjectionModal(this)"
+                    data-id="{{ cap.id }}"
+                    data-source="{{ cap.source }}"
+                    data-type="{{ cap.injection_type }}"
+                    data-amount="{{ cap.amount }}"
+                    data-date="{{ cap.injection_date|date:'Y-m-d' }}"
+                    data-repaid="{% if cap.is_repaid %}true{% else %}false{% endif %}"
+                    data-notes="{{ cap.notes }}"
+                    onmouseover="this.style.backgroundColor='rgba(255, 255, 255, 0.02)'" 
+                    onmouseout="this.style.backgroundColor='transparent'">
+                    <td style="padding: 14px 18px; color: var(--text-secondary);">{{ cap.injection_date|date:"M d, Y" }}</td>
+                    <td style="padding: 14px 18px; font-weight: 700; color: var(--text-primary);">{{ cap.source }}</td>
+                    <td style="padding: 14px 18px;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); background-color: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); padding: 2px 8px; border-radius: 4px; font-weight: 500;">
+                            {{ cap.get_injection_type_display }}
+                        </span>
+                    </td>
+                    <td style="padding: 14px 18px;">
+                        {% if cap.injection_type == 'LOAN' %}
+                            {% if cap.is_repaid %}
+                            <span class="badge badge-success" style="font-size: 0.7rem; padding: 2px 8px;">
+                                <i class="fa-solid fa-circle-check" style="margin-right: 4px;"></i> Fully Repaid
+                            </span>
+                            {% else %}
+                            <span class="badge badge-danger" style="font-size: 0.7rem; padding: 2px 8px;">
+                                <i class="fa-solid fa-circle-exclamation" style="margin-right: 4px;"></i> Repayment Pending
+                            </span>
+                            {% endif %}
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.78rem; font-style: italic;">No Debt (Contribution)</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 14px 18px; color: var(--text-muted); font-size: 0.8rem; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ cap.notes|default:"-" }}
+                    </td>
+                    <td style="padding: 14px 18px; font-weight: 700; color: var(--info); text-align: right;">${{ cap.amount|floatformat:2 }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 40px 0; color: var(--text-muted); font-style: italic;">
+                        No external capital injections. Add friend loans or personal contributions here.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ========================================== MODALS SECTION ========================================== -->
+
+<!-- Modal 1: Create Invoice -->
+<div class="modal-overlay" id="newInvoiceModal">
+    <div class="modal-content" style="max-width: 550px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-file-invoice" style="color: var(--primary); margin-right: 8px;"></i> Create New Client Invoice</h3>
+            <span class="modal-close" onclick="closeNewInvoiceModal()">&times;</span>
+        </div>
+        
+        <form action="{% url 'finance:invoice_create' %}" method="POST" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div class="form-group">
+                    <label for="invClient" class="form-label">Client Name *</label>
+                    <input type="text" class="form-control" id="invClient" name="client_name" required placeholder="e.g. Acme Corp, Jane Smith" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="invTitle" class="form-label">Invoice Title / Purpose *</label>
+                    <input type="text" class="form-control" id="invTitle" name="title" required placeholder="e.g. Q3 Design Assets, Consultation" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="invAmount" class="form-label">Amount ($ USD) *</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="invAmount" name="amount" required placeholder="0.00" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="invStatus" class="form-label">Payment Status *</label>
+                        <select class="form-control" id="invStatus" name="status" required style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                            {% for code, label in invoice_statuses %}
+                            <option value="{{ code }}" {% if code == 'SENT' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 4px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px;">
+                        <label class="form-label" style="margin-bottom: 0;">Itemized Charges</label>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addLineItemRow('invLineItems', 'inv')" style="font-size: 0.72rem; padding: 4px 10px;">
+                            <i class="fa-solid fa-plus"></i> Add Item
+                        </button>
+                    </div>
+                    <div id="invLineItems" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="invDate" class="form-label">Invoice Date *</label>
+                        <input type="date" class="form-control" id="invDate" name="invoice_date" required value="{% now 'Y-m-d' %}" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="invDue" class="form-label">Due Date</label>
+                        <input type="date" class="form-control" id="invDue" name="due_date" style="font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="invProject" class="form-label">Link to Project</label>
+                    <select class="form-control" id="invProject" name="project" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional: Choose Active Initiative --</option>
+                        {% for proj in all_projects %}
+                        <option value="{{ proj.id }}">{{ proj.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="invVendor" class="form-label">Link to Vendor / Supplier</label>
+                    <select class="form-control" id="invVendor" name="vendor" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional: Choose Vendor --</option>
+                        {% for vend in all_vendors %}
+                        <option value="{{ vend.id }}">{{ vend.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="invNotes" class="form-label">Client Notes & Instructions</label>
+                    <textarea class="form-control" id="invNotes" name="notes" rows="3" placeholder="Provide payment instructions, routing details, or terms..." style="font-size: 0.85rem;"></textarea>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto;">
+                <button type="button" class="btn btn-secondary" onclick="closeNewInvoiceModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Invoice</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 1b: Edit Invoice -->
+<div class="modal-overlay" id="editInvoiceModal">
+    <div class="modal-content" style="max-width: 550px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-file-invoice" style="color: var(--primary); margin-right: 8px;"></i> Invoice Workspace</h3>
+            <span class="modal-close" onclick="closeEditInvoiceModal()">&times;</span>
+        </div>
+        
+        <form id="editInvoiceForm" method="POST" action="" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div class="form-group">
+                    <label for="editInvClient" class="form-label">Client Name *</label>
+                    <input type="text" class="form-control" id="editInvClient" name="client_name" required placeholder="e.g. Acme Corp, Jane Smith" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="editInvTitle" class="form-label">Invoice Title / Purpose *</label>
+                    <input type="text" class="form-control" id="editInvTitle" name="title" required placeholder="e.g. Q3 Design Assets, Consultation" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editInvAmount" class="form-label">Amount ($ USD) *</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="editInvAmount" name="amount" required placeholder="0.00" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editInvStatus" class="form-label">Payment Status *</label>
+                        <select class="form-control" id="editInvStatus" name="status" required style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                            {% for code, label in invoice_statuses %}
+                            <option value="{{ code }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 4px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px;">
+                        <label class="form-label" style="margin-bottom: 0;">Itemized Charges</label>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addLineItemRow('editInvLineItems', 'editInv')" style="font-size: 0.72rem; padding: 4px 10px;">
+                            <i class="fa-solid fa-plus"></i> Add Item
+                        </button>
+                    </div>
+                    <div id="editInvLineItems" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editInvDate" class="form-label">Invoice Date *</label>
+                        <input type="date" class="form-control" id="editInvDate" name="invoice_date" required style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editInvDue" class="form-label">Due Date</label>
+                        <input type="date" class="form-control" id="editInvDue" name="due_date" style="font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="editInvProject" class="form-label">Link to Project</label>
+                    <select class="form-control" id="editInvProject" name="project" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional: Choose Active Initiative --</option>
+                        {% for proj in all_projects %}
+                        <option value="{{ proj.id }}">{{ proj.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="editInvVendor" class="form-label">Link to Vendor / Supplier</label>
+                    <select class="form-control" id="editInvVendor" name="vendor" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional: Choose Vendor --</option>
+                        {% for vend in all_vendors %}
+                        <option value="{{ vend.id }}">{{ vend.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editInvNotes" class="form-label">Client Notes & Instructions</label>
+                    <textarea class="form-control" id="editInvNotes" name="notes" rows="3" placeholder="Provide payment instructions, routing details, or terms..." style="font-size: 0.85rem;"></textarea>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto;">
+                <button type="button" class="btn btn-secondary" onclick="triggerDeleteInvoice()" style="background-color: transparent; border-color: var(--danger-bg); color: var(--danger);">
+                    <i class="fa-regular fa-trash-can"></i> Delete Invoice
+                </button>
+                <div style="display: flex; gap: 12px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditInvoiceModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </div>
+        </form>
+        <!-- Separate hidden delete form -->
+        <form id="deleteInvoiceForm" action="" method="POST" style="display: none;">
+            {% csrf_token %}
+        </form>
+    </div>
+</div>
+
+
+<!-- Modal 2: Record Expense -->
+<div class="modal-overlay" id="newExpenseModal">
+    <div class="modal-content" style="max-width: 550px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-receipt" style="color: var(--warning); margin-right: 8px;"></i> Record Business Expense</h3>
+            <span class="modal-close" onclick="closeNewExpenseModal()">&times;</span>
+        </div>
+        
+        <form action="{% url 'finance:expense_create' %}" method="POST" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div class="form-group">
+                    <label for="expTitle" class="form-label">Expense Title / Item Name *</label>
+                    <input type="text" class="form-control" id="expTitle" name="title" required placeholder="e.g. Domain Renewal, Packaging boxes" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="expAmount" class="form-label">Amount ($ USD) *</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="expAmount" name="amount" required placeholder="0.00" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="expService" class="form-label">Item / Service</label>
+                        <select class="form-control" id="expService" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);" onchange="applyVendorServiceSelection(this, 'exp')">
+                            <option value="">-- Select a vendor first --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 4px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px;">
+                        <label class="form-label" style="margin-bottom: 0;">Itemized Charges</label>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addLineItemRow('expLineItems', 'exp')" style="font-size: 0.72rem; padding: 4px 10px;">
+                            <i class="fa-solid fa-plus"></i> Add Item
+                        </button>
+                    </div>
+                    <div id="expLineItems" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="expCategory" class="form-label">Accounting Category</label>
+                    <select class="form-control" id="expCategory" name="category" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional accounting category --</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="expDate" class="form-label">Expense Date *</label>
+                        <input type="date" class="form-control" id="expDate" name="expense_date" required value="{% now 'Y-m-d' %}" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="expStatus" class="form-label">Payment Status *</label>
+                        <select class="form-control" id="expStatus" name="status" required style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                            <option value="PAID" selected>Paid</option>
+                            <option value="PENDING">Pending (Accounts Payable)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 8px;">
+                    <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">Supplier Attribution</h4>
+                    
+                    <div class="form-group">
+                        <label for="expVendor" class="form-label">Linked Directory Vendor</label>
+                        <select class="form-control" id="expVendor" name="vendor" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);" onchange="toggleVendorFallback(this, 'expFallbackGroup'); applyVendorExpenseDefaults(this, 'exp')">
+                            <option value="">-- Optional: Link to supplier card --</option>
+                            {% for vend in all_vendors %}
+                            <option value="{{ vend.id }}" data-default-category="{% if vend.default_expense_category %}{{ vend.default_expense_category.id }}{% endif %}" data-services='[{% for s in vend.services.all %}{"name":"{{ s.name|escapejs }}","price":"{{ s.price|escapejs }}","notes":"{{ s.notes|escapejs }}","desc":"{{ s.description|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'>{{ vend.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="expFallbackGroup">
+                        <label for="expFallback" class="form-label">Vendor Name (Unregistered Supplier)</label>
+                        <input type="text" class="form-control" id="expFallback" name="vendor_name_fallback" placeholder="e.g. Local post office, local printing shop" autocomplete="off" style="font-size: 0.85rem;">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="expNotes" class="form-label">Expense Details & Receipt Info</label>
+                    <textarea class="form-control" id="expNotes" name="notes" rows="3" placeholder="Receipt tracking codes, item sizes, shipping details..." style="font-size: 0.85rem;"></textarea>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto;">
+                <button type="button" class="btn btn-secondary" onclick="closeNewExpenseModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Record Expense</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 2b: Edit Expense -->
+<div class="modal-overlay" id="editExpenseModal">
+    <div class="modal-content" style="max-width: 550px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-receipt" style="color: var(--warning); margin-right: 8px;"></i> Expense Ledger</h3>
+            <span class="modal-close" onclick="closeEditExpenseModal()">&times;</span>
+        </div>
+        
+        <form id="editExpenseForm" method="POST" action="" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div class="form-group">
+                    <label for="editExpTitle" class="form-label">Expense Title / Item Name *</label>
+                    <input type="text" class="form-control" id="editExpTitle" name="title" required placeholder="e.g. Domain Renewal" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editExpAmount" class="form-label">Amount ($ USD) *</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="editExpAmount" name="amount" required placeholder="0.00" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editExpService" class="form-label">Item / Service</label>
+                        <select class="form-control" id="editExpService" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);" onchange="applyVendorServiceSelection(this, 'editExp')">
+                            <option value="">-- Select a vendor first --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 4px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px;">
+                        <label class="form-label" style="margin-bottom: 0;">Itemized Charges</label>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addLineItemRow('editExpLineItems', 'editExp')" style="font-size: 0.72rem; padding: 4px 10px;">
+                            <i class="fa-solid fa-plus"></i> Add Item
+                        </button>
+                    </div>
+                    <div id="editExpLineItems" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="editExpCategory" class="form-label">Accounting Category</label>
+                    <select class="form-control" id="editExpCategory" name="category" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional accounting category --</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editExpDate" class="form-label">Expense Date *</label>
+                        <input type="date" class="form-control" id="editExpDate" name="expense_date" required style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editExpStatus" class="form-label">Payment Status *</label>
+                        <select class="form-control" id="editExpStatus" name="status" required style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                            <option value="PAID">Paid</option>
+                            <option value="PENDING">Pending (Accounts Payable)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 8px;">
+                    <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 12px; color: var(--text-primary);">Supplier Attribution</h4>
+                    
+                    <div class="form-group">
+                        <label for="editExpVendor" class="form-label">Linked Directory Vendor</label>
+                        <select class="form-control" id="editExpVendor" name="vendor" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);" onchange="toggleVendorFallback(this, 'editExpFallbackGroup'); applyVendorExpenseDefaults(this, 'editExp')">
+                            <option value="">-- Optional: Link to supplier card --</option>
+                            {% for vend in all_vendors %}
+                            <option value="{{ vend.id }}" data-default-category="{% if vend.default_expense_category %}{{ vend.default_expense_category.id }}{% endif %}" data-services='[{% for s in vend.services.all %}{"name":"{{ s.name|escapejs }}","price":"{{ s.price|escapejs }}","notes":"{{ s.notes|escapejs }}","desc":"{{ s.description|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'>{{ vend.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="editExpFallbackGroup">
+                        <label for="editExpFallback" class="form-label">Vendor Name (Unregistered Supplier)</label>
+                        <input type="text" class="form-control" id="editExpFallback" name="vendor_name_fallback" placeholder="e.g. Local post office" autocomplete="off" style="font-size: 0.85rem;">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editExpNotes" class="form-label">Expense Details & Receipt Info</label>
+                    <textarea class="form-control" id="editExpNotes" name="notes" rows="3" placeholder="Receipt tracking codes, details..." style="font-size: 0.85rem;"></textarea>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto;">
+                <button type="button" class="btn btn-secondary" onclick="triggerDeleteExpense()" style="background-color: transparent; border-color: var(--danger-bg); color: var(--danger);">
+                    <i class="fa-regular fa-trash-can"></i> Remove Expense
+                </button>
+                <div style="display: flex; gap: 12px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditExpenseModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </div>
+        </form>
+        <!-- Separate hidden delete form -->
+        <form id="deleteExpenseForm" action="" method="POST" style="display: none;">
+            {% csrf_token %}
+        </form>
+    </div>
+</div>
+
+
+<!-- Modal 3: Capital Injection -->
+<div class="modal-overlay" id="newInjectionModal">
+    <div class="modal-content" style="max-width: 550px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-hand-holding-dollar" style="color: var(--info); margin-right: 8px;"></i> Add Capital Injection / Loan</h3>
+            <span class="modal-close" onclick="closeNewInjectionModal()">&times;</span>
+        </div>
+        
+        <form action="{% url 'finance:injection_create' %}" method="POST" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div class="form-group">
+                    <label for="capSource" class="form-label">Funding Source Name *</label>
+                    <input type="text" class="form-control" id="capSource" name="source" required placeholder="e.g. Alex (Loan), Owner Savings" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="capAmount" class="form-label">Amount ($ USD) *</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="capAmount" name="amount" required placeholder="0.00" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="capType" class="form-label">Funding Type *</label>
+                        <select class="form-control" id="capType" name="injection_type" required style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);" onchange="toggleLoanRepaidCheckbox(this, 'capRepaidGroup')">
+                            {% for code, label in injection_types %}
+                            <option value="{{ code }}" {% if code == 'LOAN' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="capDate" class="form-label">Injection Date *</label>
+                        <input type="date" class="form-control" id="capDate" name="injection_date" required value="{% now 'Y-m-d' %}" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group" id="capRepaidGroup" style="justify-content: flex-end; margin-bottom: 20px;">
+                        <label class="tag-selector-pill" style="cursor: pointer; position: relative; margin-bottom: 2px;">
+                            <input type="checkbox" name="is_repaid" value="true" style="display: none;" onchange="updateRepaidCheckboxStyle(this)">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-secondary); font-size: 0.82rem; padding: 10px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 100%; transition: all var(--transition-fast);">
+                                <i class="fa-solid fa-circle-check" style="font-size: 0.9rem;"></i> Is Loan Fully Repaid
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="capNotes" class="form-label">Interest Terms / Repayment Details</label>
+                    <textarea class="form-control" id="capNotes" name="notes" rows="4" placeholder="Write loan terms, expected repayment date, or personal account details..." style="font-size: 0.85rem;"></textarea>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto;">
+                <button type="button" class="btn btn-secondary" onclick="closeNewInjectionModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Capital</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 3b: Edit Capital Injection -->
+<div class="modal-overlay" id="editInjectionModal">
+    <div class="modal-content" style="max-width: 550px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-hand-holding-dollar" style="color: var(--info); margin-right: 8px;"></i> Capital Registry Workspace</h3>
+            <span class="modal-close" onclick="closeEditInjectionModal()">&times;</span>
+        </div>
+        
+        <form id="editInjectionForm" method="POST" action="" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div class="form-group">
+                    <label for="editCapSource" class="form-label">Funding Source Name *</label>
+                    <input type="text" class="form-control" id="editCapSource" name="source" required placeholder="e.g. Friend Name, Owner Account" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editCapAmount" class="form-label">Amount ($ USD) *</label>
+                        <input type="number" step="0.01" min="0" class="form-control" id="editCapAmount" name="amount" required placeholder="0.00" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editCapType" class="form-label">Funding Type *</label>
+                        <select class="form-control" id="editCapType" name="injection_type" required style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);" onchange="toggleLoanRepaidCheckbox(this, 'editCapRepaidGroup')">
+                            {% for code, label in injection_types %}
+                            <option value="{{ code }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editCapDate" class="form-label">Injection Date *</label>
+                        <input type="date" class="form-control" id="editCapDate" name="injection_date" required style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group" id="editCapRepaidGroup" style="justify-content: flex-end; margin-bottom: 20px;">
+                        <label class="tag-selector-pill" style="cursor: pointer; position: relative; margin-bottom: 2px;">
+                            <input type="checkbox" id="editCapRepaid" name="is_repaid" value="true" style="display: none;" onchange="updateRepaidCheckboxStyle(this)">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-secondary); font-size: 0.82rem; padding: 10px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 100%; transition: all var(--transition-fast);">
+                                <i class="fa-solid fa-circle-check" style="font-size: 0.9rem;"></i> Is Loan Fully Repaid
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editCapNotes" class="form-label">Interest Terms / Repayment Details</label>
+                    <textarea class="form-control" id="editCapNotes" name="notes" rows="4" placeholder="Write loan terms, expected repayment date..." style="font-size: 0.85rem;"></textarea>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto;">
+                <button type="button" class="btn btn-secondary" onclick="triggerDeleteInjection()" style="background-color: transparent; border-color: var(--danger-bg); color: var(--danger);">
+                    <i class="fa-regular fa-trash-can"></i> Remove Capital
+                </button>
+                <div style="display: flex; gap: 12px;">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditInjectionModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </div>
+        </form>
+        <!-- Separate hidden delete form -->
+        <form id="deleteInjectionForm" action="" method="POST" style="display: none;">
+            {% csrf_token %}
+        </form>
+    </div>
+</div>
+
+<!-- Modal 4: Manage Expense Categories -->
+<div class="modal-overlay" id="manageCategoriesModal">
+    <div class="modal-content" style="max-width: 480px; width: 95%;">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-tags" style="color: var(--primary); margin-right: 8px;"></i> Manage Expense Categories</h3>
+            <span class="modal-close" onclick="closeManageCategoriesModal()">&times;</span>
+        </div>
+        
+        <!-- Active Categories -->
+        <div style="margin-bottom: 24px;">
+            <label class="form-label" style="font-size: 0.8rem; margin-bottom: 8px; display: block;">Active Categories</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; background-color: rgba(15, 21, 36, 0.3); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm); min-height: 50px; align-items: center;">
+                {% for cat in all_categories %}
+                <span class="badge-tag" style="background-color: {{ cat.color }}15; color: {{ cat.color }}; border: 1px solid {{ cat.color }}30; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: {{ cat.color }};"></span>
+                    {{ cat.name }}
+                </span>
+                {% empty %}
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No categories created yet.</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Category Creator Form -->
+        <form action="{% url 'finance:category_create' %}" method="POST" style="border-top: 1px solid var(--border-color); padding-top: 20px;">
+            {% csrf_token %}
+            <h4 class="card-title" style="font-size: 0.95rem; margin-bottom: 14px; color: var(--text-primary);"><i class="fa-solid fa-plus-circle" style="color: var(--success); margin-right: 6px;"></i> Create Expense Category</h4>
+            
+            <div class="form-group">
+                <label for="newCategoryName" class="form-label" style="font-size: 0.8rem;">Category Name *</label>
+                <input type="text" class="form-control" id="newCategoryName" name="name" required placeholder="e.g. Subcontracting, Legal, Insurance" autocomplete="off" style="font-size: 0.85rem;">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" style="font-size: 0.8rem;">Category Label Color</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <input type="color" id="newCategoryColorPicker" value="#6366f1" style="border: none; background: transparent; cursor: pointer; width: 38px; height: 38px; border-radius: 8px; overflow: hidden; padding: 0;" oninput="updateCatHexColorField(this.value)">
+                    <input type="text" class="form-control" id="newCategoryColor" name="color" value="#6366f1" required placeholder="#6366f1" style="flex-grow: 1; margin-bottom: 0; font-size: 0.85rem; padding: 8px 12px;" oninput="updateCatColorPicker(this.value)">
+                </div>
+                <!-- Color Presets -->
+                <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+                    <span class="color-dot" onclick="setCatPresetColor('#ec4899')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #ec4899; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Pink"></span>
+                    <span class="color-dot" onclick="setCatPresetColor('#0ea5e9')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #0ea5e9; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Light Blue"></span>
+                    <span class="color-dot" onclick="setCatPresetColor('#f59e0b')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #f59e0b; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Amber"></span>
+                    <span class="color-dot" onclick="setCatPresetColor('#10b981')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #10b981; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Emerald"></span>
+                    <span class="color-dot" onclick="setCatPresetColor('#ef4444')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #ef4444; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Red"></span>
+                    <span class="color-dot" onclick="setCatPresetColor('#8b5cf6')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #8b5cf6; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Violet"></span>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeManageCategoriesModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Category</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="manageExpenseSetupModal">
+    <div class="modal-content" style="max-width: 720px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-sliders" style="color: var(--info); margin-right: 8px;"></i> Industry Expense Setup</h3>
+            <span class="modal-close" onclick="closeManageExpenseSetupModal()">&times;</span>
+        </div>
+        <div class="modal-body" style="overflow-y: auto; padding-right: 8px;">
+            <div style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 20px;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                    <thead>
+                        <tr style="background-color: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border-color);">
+                            <th style="padding: 10px 12px; text-align: left;">Industry</th>
+                            <th style="padding: 10px 12px; text-align: left;">Item</th>
+                            <th style="padding: 10px 12px; text-align: left;">Category</th>
+                            <th style="padding: 10px 12px; text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in industry_items %}
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.04);">
+                            <td style="padding: 10px 12px; color: var(--text-secondary);">{{ item.industry }}</td>
+                            <td style="padding: 10px 12px; font-weight: 700;">{{ item.name }}{% if not item.is_active %}<span class="badge badge-danger" style="margin-left: 6px;">Inactive</span>{% endif %}</td>
+                            <td style="padding: 10px 12px; color: var(--text-secondary);">{{ item.category.name|default:"-" }}</td>
+                            <td style="padding: 10px 12px; text-align: right;">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="openEditExpenseSetupItem(this)"
+                                        data-id="{{ item.id }}"
+                                        data-industry="{{ item.industry|escapejs }}"
+                                        data-name="{{ item.name|escapejs }}"
+                                        data-category="{% if item.category %}{{ item.category.id }}{% endif %}"
+                                        data-notes="{{ item.default_notes|escapejs }}"
+                                        data-active="{% if item.is_active %}true{% else %}false{% endif %}">
+                                    Edit
+                                </button>
+                                <form action="{% url 'finance:industry_item_delete' item.id %}" method="POST" style="display: inline;" onsubmit="return confirm('Delete this setup item?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-secondary btn-sm" style="color: var(--danger); border-color: var(--danger-bg);">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="padding: 24px; text-align: center; color: var(--text-muted);">No industry setup items yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <form id="expenseSetupItemForm" action="{% url 'finance:industry_item_create' %}" method="POST" style="border-top: 1px solid var(--border-color); padding-top: 18px;">
+                {% csrf_token %}
+                <h4 class="card-title" id="expenseSetupFormTitle" style="font-size: 0.95rem; margin-bottom: 14px;">Create Setup Item</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="setupIndustry" class="form-label">Industry *</label>
+                        <input type="text" class="form-control" id="setupIndustry" name="industry" required placeholder="e.g. Restaurant, Construction">
+                    </div>
+                    <div class="form-group">
+                        <label for="setupName" class="form-label">Expense Item *</label>
+                        <input type="text" class="form-control" id="setupName" name="name" required placeholder="e.g. Food Inventory">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="setupCategory" class="form-label">Default Category</label>
+                    <select class="form-control" id="setupCategory" name="category" style="background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional category --</option>
+                        {% for cat in all_categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="setupNotes" class="form-label">Default Notes</label>
+                    <textarea class="form-control" id="setupNotes" name="default_notes" rows="2" placeholder="Receipt details or tracking reminders..."></textarea>
+                </div>
+                <label style="display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 0.85rem; font-weight: 700; margin-bottom: 18px;">
+                    <input type="checkbox" id="setupActive" name="is_active" checked> Active
+                </label>
+                <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                    <button type="button" class="btn btn-secondary" onclick="resetExpenseSetupForm()">Reset</button>
+                    <button type="submit" class="btn btn-primary">Save Setup Item</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tab Switching Logic
+    function switchFinanceTab(tab) {
+        const invBtn = document.getElementById('btnInvoiceTab');
+        const expBtn = document.getElementById('btnExpenseTab');
+        const capBtn = document.getElementById('btnCapitalTab');
+        
+        const invContainer = document.getElementById('invoiceTabContainer');
+        const expContainer = document.getElementById('expenseTabContainer');
+        const capContainer = document.getElementById('capitalTabContainer');
+        
+        // Deactivate all
+        invBtn.className = 'btn btn-secondary';
+        expBtn.className = 'btn btn-secondary';
+        capBtn.className = 'btn btn-secondary';
+        invContainer.style.display = 'none';
+        expContainer.style.display = 'none';
+        capContainer.style.display = 'none';
+        
+        if (tab === 'invoices') {
+            invBtn.className = 'btn btn-primary';
+            invContainer.style.display = 'block';
+            window.location.hash = 'invoices';
+        } else if (tab === 'expenses') {
+            expBtn.className = 'btn btn-primary';
+            expContainer.style.display = 'block';
+            window.location.hash = 'expenses';
+        } else {
+            capBtn.className = 'btn btn-primary';
+            capContainer.style.display = 'block';
+            window.location.hash = 'capital';
+        }
+    }
+
+    function financeFilterText(value) {
+        return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+
+    function filterFinanceTable(type) {
+        const input = document.getElementById(`${type}Search`);
+        const tbody = document.getElementById(`${type}Rows`);
+        if (!input || !tbody) return;
+
+        const query = financeFilterText(input.value);
+        tbody.querySelectorAll('tr').forEach(row => {
+            if (!row.dataset.id) return;
+            const rowText = financeFilterText(row.innerText);
+            row.style.display = !query || rowText.includes(query) ? '' : 'none';
+        });
+    }
+
+    function clearFinanceFilter(type) {
+        const input = document.getElementById(`${type}Search`);
+        if (input) input.value = '';
+        filterFinanceTable(type);
+    }
+
+    function setFinanceFilter(type, value) {
+        const input = document.getElementById(`${type}Search`);
+        if (!input) return;
+        const cleanValue = String(value || '').replace(/\s+/g, ' ').trim();
+        if (!cleanValue || cleanValue === '-') return;
+        input.value = cleanValue.replace(/^\$/, '');
+        filterFinanceTable(type);
+    }
+
+    document.addEventListener('click', (e) => {
+        const table = e.target.closest('table[data-finance-filter-table]');
+        if (!table) return;
+
+        const type = table.dataset.financeFilterTable;
+        const header = e.target.closest('th');
+        if (header) {
+            e.stopPropagation();
+            const input = document.getElementById(`${type}Search`);
+            if (input) {
+                input.placeholder = `Filter by ${header.innerText.trim()}...`;
+                input.focus();
+            }
+            return;
+        }
+
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        e.stopPropagation();
+        setFinanceFilter(type, cell.innerText);
+    }, true);
+
+    document.addEventListener('dblclick', (e) => {
+        const table = e.target.closest('table[data-finance-filter-table]');
+        const row = e.target.closest('tr[data-id]');
+        if (!table || !row) return;
+
+        const type = table.dataset.financeFilterTable;
+        if (type === 'invoice') openEditInvoiceModal(row);
+        if (type === 'expense') openEditExpenseModal(row);
+        if (type === 'capital') openEditInjectionModal(row);
+    });
+
+    // Toggle dropdown fallback field
+    function toggleVendorFallback(selectEl, fallbackId) {
+        const fallback = document.getElementById(fallbackId);
+        if (selectEl.value) {
+            fallback.style.display = 'none';
+            fallback.querySelector('input').value = '';
+        } else {
+            fallback.style.display = 'flex';
+        }
+    }
+
+    function applyVendorExpenseDefaults(selectEl, prefix) {
+        const selected = selectEl.options[selectEl.selectedIndex];
+        if (!selected) return;
+
+        const categoryId = selected.dataset.defaultCategory || '';
+        const categoryEl = document.getElementById(`${prefix}Category`);
+        populateVendorServiceOptions(prefix, vendorServicesFromOption(selected));
+
+        if (categoryId && categoryEl) {
+            categoryEl.value = categoryId;
+        }
+    }
+
+    function vendorServicesFromOption(option) {
+        if (!option || !option.dataset.services) return [];
+        try {
+            return JSON.parse(option.dataset.services);
+        } catch (err) {
+            console.error('Error parsing vendor services:', err);
+            return [];
+        }
+    }
+
+    function populateVendorServiceOptions(prefix, services) {
+        const selectEl = document.getElementById(`${prefix}Service`);
+        if (!selectEl) return;
+        selectEl.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = services.length ? '-- Choose item / service --' : '-- No vendor offerings listed --';
+        selectEl.appendChild(placeholder);
+
+        services.forEach(service => {
+            const option = document.createElement('option');
+            option.value = service.name || '';
+            option.textContent = service.price ? `${service.name} (${service.price})` : service.name;
+            option.dataset.name = service.name || '';
+            option.dataset.price = service.price || '';
+            option.dataset.notes = service.notes || '';
+            option.dataset.desc = service.desc || '';
+            selectEl.appendChild(option);
+        });
+    }
+
+    function parseServiceAmount(price) {
+        if (!price) return '';
+        const match = String(price).replace(/,/g, '').match(/\d+(\.\d{1,2})?/);
+        return match ? Number(match[0]).toFixed(2) : '';
+    }
+
+    function applyVendorServiceSelection(selectEl, prefix) {
+        const selected = selectEl.options[selectEl.selectedIndex];
+        if (!selected || !selected.value) return;
+
+        const titleEl = document.getElementById(`${prefix}Title`);
+        const amountEl = document.getElementById(`${prefix}Amount`);
+        const notesEl = document.getElementById(`${prefix}Notes`);
+        const parsedAmount = parseServiceAmount(selected.dataset.price);
+        const noteParts = [selected.dataset.desc, selected.dataset.notes].filter(Boolean);
+
+        if (titleEl) titleEl.value = selected.dataset.name || selected.value;
+        if (amountEl && parsedAmount) amountEl.value = parsedAmount;
+        if (notesEl && noteParts.length && !notesEl.value) notesEl.value = noteParts.join(' | ');
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function createLineItemRowHtml(prefix, name = '', amount = '') {
+        return `
+            <div class="line-item-row" style="display: grid; grid-template-columns: 1fr 130px 34px; gap: 8px; align-items: center;">
+                <input type="text" class="form-control" name="line_item_name[]" value="${escapeHtml(name)}" placeholder="Item or service" autocomplete="off" style="font-size: 0.8rem; margin-bottom: 0;">
+                <input type="number" step="0.01" min="0" class="form-control line-item-amount" name="line_item_amount[]" value="${escapeHtml(amount)}" placeholder="0.00" style="font-size: 0.8rem; margin-bottom: 0;" oninput="updateLineItemTotal('${prefix}')">
+                <button type="button" onclick="this.closest('.line-item-row').remove(); updateLineItemTotal('${prefix}')" style="height: 34px; width: 34px; background: transparent; border: 1px solid var(--danger-bg); color: var(--danger); cursor: pointer; border-radius: 6px;" title="Remove item">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
+            </div>
+        `;
+    }
+
+    function addLineItemRow(containerId, prefix, name = '', amount = '') {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = createLineItemRowHtml(prefix, name, amount).trim();
+        container.appendChild(wrapper.firstChild);
+        updateLineItemTotal(prefix);
+    }
+
+    function setLineItemRows(containerId, prefix, rawItems) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        let items = [];
+        try {
+            items = rawItems ? JSON.parse(rawItems) : [];
+        } catch (err) {
+            console.error('Error parsing line items:', err);
+        }
+        items.forEach(item => addLineItemRow(containerId, prefix, item.name || '', item.amount || ''));
+        updateLineItemTotal(prefix);
+    }
+
+    function clearLineItemRows(containerId, prefix) {
+        const container = document.getElementById(containerId);
+        if (container) container.innerHTML = '';
+        updateLineItemTotal(prefix);
+    }
+
+    function updateLineItemTotal(prefix) {
+        const amountEl = document.getElementById(`${prefix}Amount`);
+        const container = document.getElementById(`${prefix}LineItems`);
+        if (!amountEl || !container) return;
+        const amounts = Array.from(container.querySelectorAll('.line-item-amount'));
+        if (!amounts.length) return;
+        const total = amounts.reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0);
+        amountEl.value = total.toFixed(2);
+    }
+
+    // Hide/show repayment checkbox if injection type is not LOAN
+    function toggleLoanRepaidCheckbox(selectEl, cbGroupId) {
+        const group = document.getElementById(cbGroupId);
+        if (selectEl.value === 'LOAN') {
+            group.style.display = 'flex';
+        } else {
+            group.style.display = 'none';
+            const cb = group.querySelector('input[type="checkbox"]');
+            cb.checked = false;
+            updateRepaidCheckboxStyle(cb);
+        }
+    }
+
+    // Visual checkbox trigger states
+    function updateRepaidCheckboxStyle(checkbox) {
+        const span = checkbox.closest('.tag-selector-pill').querySelector('span');
+        if (checkbox.checked) {
+            span.style.backgroundColor = 'var(--success-bg)';
+            span.style.borderColor = 'var(--success)';
+            span.style.color = 'var(--success)';
+            span.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.15)';
+        } else {
+            span.style.backgroundColor = 'transparent';
+            span.style.borderColor = 'var(--border-color)';
+            span.style.color = 'var(--text-secondary)';
+            span.style.boxShadow = 'none';
+        }
+    }
+
+    // Modal Triggers: Add Invoice
+    function openNewInvoiceModal(vendorId = '') {
+        const modal = document.getElementById('newInvoiceModal');
+        const form = modal.querySelector('form');
+        if (form) form.reset();
+        document.getElementById('invVendor').value = vendorId || '';
+        clearLineItemRows('invLineItems', 'inv');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    function closeNewInvoiceModal() {
+        const modal = document.getElementById('newInvoiceModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    // Modal Triggers: Edit Invoice
+    function openEditInvoiceModal(row) {
+        const id = row.dataset.id;
+        const client = row.dataset.client;
+        const title = row.dataset.title;
+        const project = row.dataset.project;
+        const vendor = row.dataset.vendor;
+        const amount = row.dataset.amount;
+        const date = row.dataset.date;
+        const due = row.dataset.due;
+        const status = row.dataset.status;
+        const notes = row.dataset.notes;
+        const lineItems = row.dataset.lineItems;
+
+        document.getElementById('editInvoiceForm').action = `/finance/invoice/${id}/update/`;
+        document.getElementById('deleteInvoiceForm').action = `/finance/invoice/${id}/delete/`;
+
+        document.getElementById('editInvClient').value = client;
+        document.getElementById('editInvTitle').value = title;
+        document.getElementById('editInvAmount').value = amount;
+        document.getElementById('editInvDate').value = date;
+        document.getElementById('editInvDue').value = due;
+        document.getElementById('editInvStatus').value = status;
+        document.getElementById('editInvProject').value = project;
+        document.getElementById('editInvVendor').value = vendor;
+        document.getElementById('editInvNotes').value = notes;
+        setLineItemRows('editInvLineItems', 'editInv', lineItems);
+
+        const modal = document.getElementById('editInvoiceModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    function closeEditInvoiceModal() {
+        const modal = document.getElementById('editInvoiceModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    function triggerDeleteInvoice() {
+        const form = document.getElementById('deleteInvoiceForm');
+        if (form && confirm('Permanently remove this invoice from records?')) {
+            form.submit();
+        }
+    }
+
+    // Modal Triggers: Add Expense
+    function openNewExpenseModal(vendorId = '') {
+        const modal = document.getElementById('newExpenseModal');
+        const form = modal.querySelector('form');
+        if (form) form.reset();
+        clearLineItemRows('expLineItems', 'exp');
+        // Reset fallbacks
+        const vendorSelect = document.getElementById('expVendor');
+        vendorSelect.value = vendorId || '';
+        toggleVendorFallback(vendorSelect, 'expFallbackGroup');
+        applyVendorExpenseDefaults(vendorSelect, 'exp');
+        
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    function closeNewExpenseModal() {
+        const modal = document.getElementById('newExpenseModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    // Modal Triggers: Edit Expense
+    function openEditExpenseModal(row) {
+        const id = row.dataset.id;
+        const title = row.dataset.title;
+        const amount = row.dataset.amount;
+        const date = row.dataset.date;
+        const category = row.dataset.category;
+        const status = row.dataset.status;
+        const vendor = row.dataset.vendor;
+        const fallback = row.dataset.fallback;
+        const notes = row.dataset.notes;
+        const lineItems = row.dataset.lineItems;
+
+        document.getElementById('editExpenseForm').action = `/finance/expense/${id}/update/`;
+        document.getElementById('deleteExpenseForm').action = `/finance/expense/${id}/delete/`;
+
+        document.getElementById('editExpTitle').value = title;
+        document.getElementById('editExpAmount').value = amount;
+        document.getElementById('editExpDate').value = date;
+        document.getElementById('editExpStatus').value = status;
+        document.getElementById('editExpVendor').value = vendor;
+        document.getElementById('editExpFallback').value = fallback;
+        document.getElementById('editExpNotes').value = notes;
+
+        const vendorSelect = document.getElementById('editExpVendor');
+        toggleVendorFallback(vendorSelect, 'editExpFallbackGroup');
+        applyVendorExpenseDefaults(vendorSelect, 'editExp');
+        document.getElementById('editExpCategory').value = category;
+        setLineItemRows('editExpLineItems', 'editExp', lineItems);
+
+        const modal = document.getElementById('editExpenseModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    function closeEditExpenseModal() {
+        const modal = document.getElementById('editExpenseModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    function triggerDeleteExpense() {
+        const form = document.getElementById('deleteExpenseForm');
+        if (form && confirm('Permanently remove this expense from your register?')) {
+            form.submit();
+        }
+    }
+
+    // Modal Triggers: Add Injection
+    function openNewInjectionModal() {
+        const modal = document.getElementById('newInjectionModal');
+        document.getElementById('capType').value = 'LOAN';
+        toggleLoanRepaidCheckbox(document.getElementById('capType'), 'capRepaidGroup');
+        
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    function closeNewInjectionModal() {
+        const modal = document.getElementById('newInjectionModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    // Modal Triggers: Edit Injection
+    function openEditInjectionModal(row) {
+        const id = row.dataset.id;
+        const source = row.dataset.source;
+        const type = row.dataset.type;
+        const amount = row.dataset.amount;
+        const date = row.dataset.date;
+        const repaid = row.dataset.repaid === 'true';
+        const notes = row.dataset.notes;
+
+        document.getElementById('editInjectionForm').action = `/finance/injection/${id}/update/`;
+        document.getElementById('deleteInjectionForm').action = `/finance/injection/${id}/delete/`;
+
+        document.getElementById('editCapSource').value = source;
+        document.getElementById('editCapType').value = type;
+        document.getElementById('editCapAmount').value = amount;
+        document.getElementById('editCapDate').value = date;
+        document.getElementById('editCapNotes').value = notes;
+
+        const repaidCb = document.getElementById('editCapRepaid');
+        repaidCb.checked = repaid;
+        updateRepaidCheckboxStyle(repaidCb);
+
+        toggleLoanRepaidCheckbox(document.getElementById('editCapType'), 'editCapRepaidGroup');
+
+        const modal = document.getElementById('editInjectionModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    function closeEditInjectionModal() {
+        const modal = document.getElementById('editInjectionModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    function triggerDeleteInjection() {
+        const form = document.getElementById('deleteInjectionForm');
+        if (form && confirm('Permanently remove this funding record from logs?')) {
+            form.submit();
+        }
+    }
+
+    // Modal Triggers: Manage Categories
+    function openManageCategoriesModal() {
+        const modal = document.getElementById('manageCategoriesModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    function closeManageCategoriesModal() {
+        const modal = document.getElementById('manageCategoriesModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function openManageExpenseSetupModal() {
+        const modal = document.getElementById('manageExpenseSetupModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function closeManageExpenseSetupModal() {
+        const modal = document.getElementById('manageExpenseSetupModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function resetExpenseSetupForm() {
+        const form = document.getElementById('expenseSetupItemForm');
+        form.action = "{% url 'finance:industry_item_create' %}";
+        form.reset();
+        document.getElementById('setupActive').checked = true;
+        document.getElementById('expenseSetupFormTitle').textContent = 'Create Setup Item';
+    }
+
+    function openEditExpenseSetupItem(button) {
+        const form = document.getElementById('expenseSetupItemForm');
+        form.action = `/finance/industry-items/${button.dataset.id}/update/`;
+        document.getElementById('expenseSetupFormTitle').textContent = 'Edit Setup Item';
+        document.getElementById('setupIndustry').value = button.dataset.industry || '';
+        document.getElementById('setupName').value = button.dataset.name || '';
+        document.getElementById('setupCategory').value = button.dataset.category || '';
+        document.getElementById('setupNotes').value = button.dataset.notes || '';
+        document.getElementById('setupActive').checked = button.dataset.active === 'true';
+    }
+    
+    function setCatPresetColor(hex) {
+        document.getElementById('newCategoryColor').value = hex;
+        document.getElementById('newCategoryColorPicker').value = hex;
+    }
+    
+    function updateCatHexColorField(val) {
+        document.getElementById('newCategoryColor').value = val;
+    }
+    
+    function updateCatColorPicker(val) {
+        if (val.match(/^#[0-9A-Fa-f]{6}$/)) {
+            document.getElementById('newCategoryColorPicker').value = val;
+        }
+    }
+
+    // Close Modals on Backdrop Click
+    window.addEventListener('click', (e) => {
+        const newInv = document.getElementById('newInvoiceModal');
+        const editInv = document.getElementById('editInvoiceModal');
+        const newExp = document.getElementById('newExpenseModal');
+        const editExp = document.getElementById('editExpenseModal');
+        const newCap = document.getElementById('newInjectionModal');
+        const editCap = document.getElementById('editInjectionModal');
+        const manageCat = document.getElementById('manageCategoriesModal');
+        const manageSetup = document.getElementById('manageExpenseSetupModal');
+
+        if (e.target === newInv) closeNewInvoiceModal();
+        if (e.target === editInv) closeEditInvoiceModal();
+        if (e.target === newExp) closeNewExpenseModal();
+        if (e.target === editExp) closeEditExpenseModal();
+        if (e.target === newCap) closeNewInjectionModal();
+        if (e.target === editCap) closeEditInjectionModal();
+        if (e.target === manageCat) closeManageCategoriesModal();
+        if (e.target === manageSetup) closeManageExpenseSetupModal();
+    });
+
+    // Hash routing for tabs on load
+    document.addEventListener('DOMContentLoaded', () => {
+        const hash = window.location.hash;
+        const params = new URLSearchParams(window.location.search);
+        if (hash === '#expenses') {
+            switchFinanceTab('expenses');
+        } else if (hash === '#capital') {
+            switchFinanceTab('capital');
+        } else {
+            switchFinanceTab('invoices');
+        }
+
+        if (hash === '#new-invoice') {
+            openNewInvoiceModal(params.get('vendor') || '');
+        } else if (hash === '#new-expense') {
+            switchFinanceTab('expenses');
+            openNewExpenseModal(params.get('vendor') || '');
+        }
+    });
+</script>
+{% endblock %}

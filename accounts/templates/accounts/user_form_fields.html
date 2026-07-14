@@ -1,0 +1,81 @@
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Username">Username *</label>
+        <input class="form-control" id="{{ prefix }}Username" name="username" type="text" required autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Email">Email</label>
+        <input class="form-control" id="{{ prefix }}Email" name="email" type="email" autocomplete="off">
+    </div>
+</div>
+
+{% if not is_create %}
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}FirstName">First Name</label>
+        <input class="form-control" id="{{ prefix }}FirstName" name="first_name" type="text" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}LastName">Last Name</label>
+        <input class="form-control" id="{{ prefix }}LastName" name="last_name" type="text" autocomplete="off">
+    </div>
+</div>
+{% endif %}
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Password">{% if is_create %}Password *{% else %}New Password{% endif %}</label>
+        <input class="form-control" id="{{ prefix }}Password" name="password" type="password" {% if is_create %}required{% endif %} autocomplete="new-password" placeholder="{% if is_create %}Required{% else %}Leave blank to keep current{% endif %}">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Role">Role</label>
+        <select class="form-control" id="{{ prefix }}Role" name="role" onchange="togglePermissionPanel('{{ prefix }}')" style="background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+            {% for code, label in roles %}
+            <option value="{{ code }}" {% if is_create and code == 'USER' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<label class="tag-selector-pill" style="cursor: pointer; display: block; margin-bottom: 18px;">
+    <input id="{{ prefix }}IsActive" type="checkbox" name="is_active" checked style="display: none;">
+    <span style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border-color); color: var(--text-secondary); padding: 10px 14px; border-radius: var(--radius-sm); font-weight: 700; font-size: 0.82rem;">
+        <i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Account Active
+    </span>
+</label>
+
+<div id="{{ prefix }}PermissionPanel" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; background-color: var(--bg-sidebar);">
+    <label class="form-label" style="margin-bottom: 12px; display: block;">Feature Permissions</label>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Projects" type="checkbox" name="can_access_projects" style="margin-right: 8px;"> Projects & To-Dos</label>
+        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Documents" type="checkbox" name="can_access_documents" style="margin-right: 8px;"> Documents & Notes</label>
+        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Vendors" type="checkbox" name="can_access_vendors" style="margin-right: 8px;"> Vendors & Suppliers</label>
+        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Finance" type="checkbox" name="can_access_finance" style="margin-right: 8px;"> Finance & Invoicing</label>
+        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Accounts" type="checkbox" name="can_manage_accounts" style="margin-right: 8px;"> Account Manager</label>
+    </div>
+</div>
+
+<div style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; background-color: rgba(15, 21, 36, 0.6); margin-top: 16px;">
+    <label class="form-label" style="margin-bottom: 12px; display: block;">Business Assignments</label>
+    {% if businesses %}
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+        {% for business in businesses %}
+        <div style="border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text-primary); font-size: 0.88rem; margin-bottom: 10px;">
+                <input id="{{ prefix }}Business{{ business.id }}" class="{{ prefix }}-business-assignment" type="checkbox" name="businesses" value="{{ business.id }}">
+                {{ business }}
+            </label>
+            <div style="display: grid; grid-template-columns: repeat(5, minmax(90px, 1fr)); gap: 8px; font-size: 0.76rem; color: var(--text-secondary);">
+                <label><input id="{{ prefix }}Business{{ business.id }}Projects" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_projects"> Projects</label>
+                <label><input id="{{ prefix }}Business{{ business.id }}Documents" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_documents"> Documents</label>
+                <label><input id="{{ prefix }}Business{{ business.id }}Vendors" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_vendors"> Vendors</label>
+                <label><input id="{{ prefix }}Business{{ business.id }}Finance" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_finance"> Finance</label>
+                <label><input id="{{ prefix }}Business{{ business.id }}Accounts" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_accounts"> Accounts</label>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="font-size: 0.82rem; color: var(--text-muted); margin: 0;">Create a business before assigning account access.</p>
+    {% endif %}
+</div>

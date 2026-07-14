@@ -1,0 +1,159 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CRMbles{% endblock %}</title>
+    <!-- FontAwesome CDN for modern vector icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Premium CSS Design System -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <!-- Creative App Favicon -->
+    <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation Shell -->
+        <aside class="sidebar" id="appSidebar">
+            <div class="sidebar-logo">
+                <div class="logo-icon">C</div>
+                <span class="logo-text">CRMbles</span>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li class="sidebar-item {% if request.resolver_match.view_name == 'core:dashboard' %}active{% endif %}">
+                    <a href="{% url 'core:dashboard' %}">
+                        <i class="fa-solid fa-chart-line"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                {% if feature_access.projects %}
+                <li class="sidebar-item {% if 'projects' in request.resolver_match.app_name %}active{% endif %}">
+                    <a href="{% url 'projects:project_list' %}">
+                        <i class="fa-solid fa-folder-tree"></i>
+                        <span>Projects & To-Dos</span>
+                    </a>
+                </li>
+                {% endif %}
+                {% if feature_access.documents %}
+                <li class="sidebar-item {% if 'documents' in request.resolver_match.app_name %}active{% endif %}">
+                    <a href="{% url 'documents:document_list' %}">
+                        <i class="fa-solid fa-file-lines"></i>
+                        <span>Documents & Notes</span>
+                    </a>
+                </li>
+                {% endif %}
+                {% if feature_access.vendors %}
+                <li class="sidebar-item {% if 'vendors' in request.resolver_match.app_name %}active{% endif %}">
+                    <a href="{% url 'vendors:vendor_list' %}">
+                        <i class="fa-solid fa-store"></i>
+                        <span>Vendors & Suppliers</span>
+                    </a>
+                </li>
+                {% endif %}
+                <!-- Future Modular Extensions -->
+                <li class="sidebar-item" style="opacity: 0.45; cursor: not-allowed;" title="Coming Soon: Clients Module">
+                    <a href="#" onclick="return false;">
+                        <i class="fa-solid fa-users"></i>
+                        <span>Clients (Soon)</span>
+                    </a>
+                </li>
+                {% if feature_access.finance %}
+                <li class="sidebar-item {% if 'finance' in request.resolver_match.app_name %}active{% endif %}">
+                    <a href="{% url 'finance:dashboard' %}">
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                        <span>Finance & Invoicing</span>
+                    </a>
+                </li>
+                {% endif %}
+                {% if feature_access.manage_accounts %}
+                <li class="sidebar-item {% if 'accounts' in request.resolver_match.app_name %}active{% endif %}">
+                    <a href="{% url 'accounts:user_list' %}">
+                        <i class="fa-solid fa-user-gear"></i>
+                        <span>Account Manager</span>
+                    </a>
+                </li>
+                {% if request.user.profile.is_manager %}
+                    <li class="sidebar-item {% if request.resolver_match.view_name == 'accounts:business_list' %}active{% endif %}">
+                        <a href="{% url 'accounts:business_list' %}">
+                            <i class="fa-solid fa-building"></i>
+                            <span>Businesses</span>
+                        </a>
+                    </li>
+                {% endif %}
+                {% endif %}
+            </ul>
+            
+            <!-- Sidebar User Profile Footer -->
+            <div class="sidebar-footer">
+                <div class="user-avatar">{{ request.user.username|first|upper }}</div>
+                <div class="user-info">
+                    <span class="user-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+                    <span class="user-role">{{ request.user.profile.get_role_display }} &middot; <a href="{% url 'accounts:logout' %}" style="color: var(--primary);">Logout</a></span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Panel -->
+        <div class="main-wrapper" id="mainWrapper">
+            <!-- Top Glassmorphic Navigation Bar -->
+            <header class="top-header">
+                <div class="header-title-section">
+                    <h1 class="header-title">{% block header_title %}Dashboard{% endblock %}</h1>
+                    <span class="header-subtitle">{% if active_business %}{{ active_business }} &middot; {% endif %}{% block header_subtitle %}Welcome back to your workspace.{% endblock %}</span>
+                </div>
+                
+                <div class="header-actions">
+                    {% if available_businesses|length > 1 and active_business %}
+                    <form action="{% url 'accounts:business_switch' active_business.id %}" method="POST" style="margin: 0;">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <select class="form-control" onchange="this.form.action='/accounts/businesses/' + this.value + '/switch/'; this.form.submit();" style="font-size: 0.82rem; min-width: 180px; padding: 8px 12px; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary); margin-bottom: 0;">
+                            {% for business in available_businesses %}
+                            <option value="{{ business.id }}" {% if active_business.id == business.id %}selected{% endif %}>{{ business }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    {% endif %}
+                    {% block header_actions %}
+                    <!-- Contextual header actions (buttons, filters) injected here -->
+                    {% endblock %}
+                </div>
+            </header>
+
+            <!-- Active Viewport Body -->
+            <main class="content-body">
+                {% if messages %}
+                <div class="messages-container" style="margin-bottom: 24px; display: flex; flex-direction: column; gap: 12px;">
+                    {% for message in messages %}
+                    <div class="card badge-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% else %}info{% endif %}" style="padding: 12px 20px; font-weight: 500; font-size: 0.9rem; border-radius: var(--radius-sm); border: none;">
+                        <i class="fa-solid {% if message.tags == 'error' %}fa-circle-exclamation{% elif message.tags == 'success' %}fa-circle-check{% else %}fa-circle-info{% endif %}" style="margin-right: 8px;"></i>
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% block content %}
+                <!-- Child templates inject their core page structures here -->
+                {% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Core Layout JS and Animations -->
+    <script>
+        // Highlighting active path elements dynamically if django-resolver-match doesn't catch them
+        document.addEventListener('DOMContentLoaded', () => {
+            const currentPath = window.location.pathname;
+            const menuItems = document.querySelectorAll('.sidebar-item');
+            
+            // Subtle micro-interaction: Log loading performance or state transitions
+            console.log('CRMbles workspace initialized successfully.');
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

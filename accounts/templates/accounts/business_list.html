@@ -1,0 +1,152 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Businesses | CRMbles{% endblock %}
+{% block header_title %}Business Profiles{% endblock %}
+{% block header_subtitle %}Manage separate companies, addresses, invoice settings, and reporting scopes.{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="openCreateBusinessModal()">
+    <i class="fa-solid fa-building-circle-arrow-right"></i> New Business
+</button>
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px;">
+    {% for business in businesses %}
+    <div class="card card-hover" style="display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex; justify-content: space-between; gap: 12px;">
+            <div>
+                <h3 class="card-title" style="font-size: 1.15rem; margin-bottom: 4px;">
+                    <i class="fa-solid fa-building" style="color: {{ business.brand_color }}; margin-right: 8px;"></i>{{ business }}
+                </h3>
+                <div style="font-size: 0.78rem; color: var(--text-muted);">{{ business.legal_name|default:"No legal name saved" }}</div>
+            </div>
+            <span class="badge {% if business.is_active %}badge-success{% else %}badge-danger{% endif %}">{% if business.is_active %}Active{% else %}Archived{% endif %}</span>
+        </div>
+        <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;">
+            {% if business.address_line1 %}<div>{{ business.address_line1 }}</div>{% endif %}
+            {% if business.address_line2 %}<div>{{ business.address_line2 }}</div>{% endif %}
+            {% if business.city or business.state or business.postal_code %}<div>{{ business.city }}{% if business.city and business.state %}, {% endif %}{{ business.state }} {{ business.postal_code }}</div>{% endif %}
+            {% if business.phone %}<div><i class="fa-solid fa-phone" style="width: 16px;"></i> {{ business.phone }}</div>{% endif %}
+            {% if business.email %}<div><i class="fa-regular fa-envelope" style="width: 16px;"></i> {{ business.email }}</div>{% endif %}
+        </div>
+        <div style="display: flex; justify-content: space-between; gap: 10px; margin-top: auto;">
+            <form action="{% url 'accounts:business_switch' business.id %}" method="POST" style="margin: 0;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{% url 'core:dashboard' %}">
+                <button class="btn btn-secondary btn-sm" type="submit"><i class="fa-solid fa-repeat"></i> Switch</button>
+            </form>
+            <button class="btn btn-primary btn-sm" onclick="openEditBusinessModal(this)"
+                    data-id="{{ business.id }}"
+                    data-name="{{ business.name|escapejs }}"
+                    data-display-name="{{ business.display_name|escapejs }}"
+                    data-legal-name="{{ business.legal_name|escapejs }}"
+                    data-address-line1="{{ business.address_line1|escapejs }}"
+                    data-address-line2="{{ business.address_line2|escapejs }}"
+                    data-city="{{ business.city|escapejs }}"
+                    data-state="{{ business.state|escapejs }}"
+                    data-postal-code="{{ business.postal_code|escapejs }}"
+                    data-country="{{ business.country|escapejs }}"
+                    data-phone="{{ business.phone|escapejs }}"
+                    data-email="{{ business.email|escapejs }}"
+                    data-website="{{ business.website|escapejs }}"
+                    data-tax-id="{{ business.tax_id|escapejs }}"
+                    data-default-currency="{{ business.default_currency|escapejs }}"
+                    data-fiscal-year-start-month="{{ business.fiscal_year_start_month }}"
+                    data-invoice-prefix="{{ business.invoice_prefix|escapejs }}"
+                    data-brand-color="{{ business.brand_color|escapejs }}"
+                    data-active="{% if business.is_active %}true{% else %}false{% endif %}">
+                <i class="fa-regular fa-pen-to-square"></i> Edit
+            </button>
+        </div>
+    </div>
+    {% empty %}
+    <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+        <h3 class="card-title">No businesses yet</h3>
+        <p style="color: var(--text-muted); margin: 8px 0 22px;">Create the first business profile to start organizing records.</p>
+        <button class="btn btn-primary" onclick="openCreateBusinessModal()">Create Business</button>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="modal-overlay" id="createBusinessModal">
+    <div class="modal-content" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <h3 class="card-title">Create Business</h3>
+            <span class="modal-close" onclick="closeCreateBusinessModal()">&times;</span>
+        </div>
+        <form action="{% url 'accounts:business_create' %}" method="POST">
+            {% csrf_token %}
+            {% include 'accounts/business_form_fields.html' with prefix='create' %}
+            <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateBusinessModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Business</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="editBusinessModal">
+    <div class="modal-content" style="max-width: 680px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-header">
+            <h3 class="card-title">Edit Business</h3>
+            <span class="modal-close" onclick="closeEditBusinessModal()">&times;</span>
+        </div>
+        <form id="editBusinessForm" method="POST" action="">
+            {% csrf_token %}
+            {% include 'accounts/business_form_fields.html' with prefix='edit' %}
+            <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditBusinessModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Business</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const businessFields = ['Name','DisplayName','LegalName','AddressLine1','AddressLine2','City','State','PostalCode','Country','Phone','Email','Website','TaxId','DefaultCurrency','FiscalYearStartMonth','InvoicePrefix','BrandColor'];
+
+    function openCreateBusinessModal() {
+        const modal = document.getElementById('createBusinessModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function closeCreateBusinessModal() {
+        const modal = document.getElementById('createBusinessModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function dataKeyFor(field) {
+        return field.charAt(0).toLowerCase() + field.slice(1);
+    }
+
+    function openEditBusinessModal(button) {
+        document.getElementById('editBusinessForm').action = `/accounts/businesses/${button.dataset.id}/update/`;
+        businessFields.forEach(field => {
+            const input = document.getElementById(`edit${field}`);
+            if (input) input.value = button.dataset[dataKeyFor(field)] || '';
+        });
+        document.getElementById('editIsActive').checked = button.dataset.active === 'true';
+        const modal = document.getElementById('editBusinessModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function closeEditBusinessModal() {
+        const modal = document.getElementById('editBusinessModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    window.addEventListener('click', (event) => {
+        const createModal = document.getElementById('createBusinessModal');
+        const editModal = document.getElementById('editBusinessModal');
+        if (event.target === createModal) closeCreateBusinessModal();
+        if (event.target === editModal) closeEditBusinessModal();
+    });
+</script>
+{% endblock %}

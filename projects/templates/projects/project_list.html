@@ -1,0 +1,122 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Projects | CRMbles{% endblock %}
+
+{% block header_title %}Projects & Workspaces{% endblock %}
+{% block header_subtitle %}Manage your initiatives, scopes, and interactive task boards.{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="openNewProjectModal()">
+    <i class="fa-solid fa-folder-plus"></i> Create Project
+</button>
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 32px;">
+    {% if project_stats %}
+        {% for stat in project_stats %}
+        <div class="card card-hover" style="display: flex; flex-direction: column; justify-content: space-between; min-height: 200px;">
+            <div>
+                <div class="card-header" style="margin-bottom: 12px; padding-bottom: 0;">
+                    <span class="card-title" style="font-size: 1.25rem;">
+                        <i class="fa-solid fa-folder-open" style="color: var(--primary); margin-right: 10px;"></i>
+                        {{ stat.project.name }}
+                    </span>
+                    <span class="badge {% if stat.project.status == 'ACTIVE' %}badge-success{% else %}badge-info{% endif %}">
+                        {{ stat.project.status }}
+                    </span>
+                </div>
+                <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 24px; padding-left: 30px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                    {% if stat.project.description %}{{ stat.project.description }}{% else %}No description provided.{% endif %}
+                </p>
+            </div>
+            
+            <div>
+                <!-- Progress Indicator -->
+                <div style="background-color: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 6px; font-weight: 600;">
+                        <span style="color: var(--text-secondary);">Board Completeness</span>
+                        <span>{{ stat.completion_rate }}%</span>
+                    </div>
+                    <div style="background-color: var(--bg-card); height: 6px; border-radius: 3px; overflow: hidden; border: 1px solid var(--border-color);">
+                        <div style="width: {{ stat.completion_rate }}%; background: linear-gradient(90deg, var(--primary), var(--success)); height: 100%; border-radius: 3px;"></div>
+                    </div>
+                    <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 6px;">
+                        {{ stat.completed_tasks }} of {{ stat.total_tasks }} tasks resolved
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 12px;">
+                    <a href="{% url 'projects:project_detail' stat.project.id %}" class="btn btn-secondary btn-sm" style="flex-grow: 1;">
+                        <i class="fa-solid fa-table-columns"></i> Open Board
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 80px 40px; color: var(--text-muted);">
+            <i class="fa-solid fa-folder-closed" style="font-size: 3.5rem; margin-bottom: 20px; color: var(--text-muted); display: block;"></i>
+            <h3 style="font-family: var(--font-heading); color: var(--text-primary); margin-bottom: 10px; font-size: 1.4rem;">No projects set up yet</h3>
+            <p style="font-size: 0.95rem; max-width: 420px; margin: 0 auto 24px;">
+                Create your first project workspace (like the "dowitz" project) to hold task boards, checklists, and documents.
+            </p>
+            <button class="btn btn-primary" onclick="openNewProjectModal()">
+                <i class="fa-solid fa-plus"></i> Build First Workspace
+            </button>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Glassmorphic Create Project Modal -->
+<div class="modal-overlay" id="newProjectModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-folder-plus" style="color: var(--primary); margin-right: 8px;"></i> Create Project Space</h3>
+            <span class="modal-close" onclick="closeNewProjectModal()">&times;</span>
+        </div>
+        
+        <form action="{% url 'projects:project_create' %}" method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="projName" class="form-label">Project Name *</label>
+                <input type="text" class="form-control" id="projName" name="name" required placeholder="e.g. dowitz" autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label for="projDesc" class="form-label">Description (Optional)</label>
+                <textarea class="form-control" id="projDesc" name="description" rows="3" placeholder="Brief outline of target goals or scope..."></textarea>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeNewProjectModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Space</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function openNewProjectModal() {
+        const modal = document.getElementById('newProjectModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeNewProjectModal() {
+        const modal = document.getElementById('newProjectModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    
+    // Close modal if user clicks backdrop overlay
+    window.addEventListener('click', (e) => {
+        const modal = document.getElementById('newProjectModal');
+        if (e.target === modal) {
+            closeNewProjectModal();
+        }
+    });
+</script>
+{% endblock %}

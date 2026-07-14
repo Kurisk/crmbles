@@ -1,0 +1,229 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Dashboard | CRMbles{% endblock %}
+
+{% block header_title %}Command Center{% endblock %}
+{% block header_subtitle %}Overview of your CRMbles workspace and operations.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'documents:document_create' %}" class="btn btn-secondary">
+    <i class="fa-solid fa-plus-circle"></i> New Note
+</a>
+<a href="{% url 'projects:project_list' %}" class="btn btn-primary">
+    <i class="fa-solid fa-circle-plus"></i> Go to Board
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Metrics Summary Grid -->
+<div class="metrics-grid">
+    <div class="card metric-card card-hover">
+        <div class="metric-icon-box" style="background-color: var(--primary-glow); color: var(--primary);">
+            <i class="fa-solid fa-diagram-project"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value">{{ total_projects }}</span>
+            <span class="metric-label">Active Projects</span>
+        </div>
+    </div>
+    
+    <div class="card metric-card card-hover">
+        <div class="metric-icon-box" style="background-color: var(--danger-bg); color: var(--danger);">
+            <i class="fa-solid fa-list-check"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value">{{ pending_tasks_count }}</span>
+            <span class="metric-label">Pending Tasks</span>
+        </div>
+    </div>
+
+    <div class="card metric-card card-hover">
+        <div class="metric-icon-box" style="background-color: var(--success-bg); color: var(--success);">
+            <i class="fa-solid fa-clipboard-check"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value">{{ completed_tasks_count }}</span>
+            <span class="metric-label">Completed Tasks</span>
+        </div>
+    </div>
+
+    <div class="card metric-card card-hover">
+        <div class="metric-icon-box" style="background-color: var(--info-bg); color: var(--info);">
+            <i class="fa-solid fa-file-invoice"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value">{{ total_documents }}</span>
+            <span class="metric-label">Saved Documents</span>
+        </div>
+    </div>
+
+    <a href="{% url 'finance:dashboard' %}#invoices" class="card metric-card card-hover" style="text-decoration: none;">
+        <div class="metric-icon-box" style="background-color: var(--warning-bg); color: var(--warning);">
+            <i class="fa-solid fa-file-circle-exclamation"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value">{{ pending_invoices_count }}</span>
+            <span class="metric-label">Pending Invoices</span>
+        </div>
+    </a>
+
+    <a href="{% url 'finance:dashboard' %}#expenses" class="card metric-card card-hover" style="text-decoration: none;">
+        <div class="metric-icon-box" style="background-color: var(--danger-bg); color: var(--danger);">
+            <i class="fa-solid fa-receipt"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value">{{ pending_expenses_count }}</span>
+            <span class="metric-label">Pending Expenses</span>
+        </div>
+    </a>
+</div>
+
+<!-- Main Dashboard Layout split -->
+<div class="dashboard-grid">
+    <!-- Left Column: Active Projects & Actions -->
+    <div class="dashboard-left">
+        <!-- CRMbles Workspace Overview Card -->
+        <div class="card card-hover">
+            <div class="card-header">
+                <span class="card-title"><i class="fa-solid fa-network-wired" style="color: var(--primary); margin-right: 8px;"></i> CRMbles Workspace</span>
+                <span class="badge badge-success">Active & Healthy</span>
+            </div>
+            
+            <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 0.95rem;">
+                This workspace contains your planning resources, checklists, design requirements, and reference notes in one CRMbles command center.
+            </p>
+            
+            <div style="background-color: var(--bg-sidebar); padding: 20px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 4px;">Task Progress Checklist</h4>
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Completeness: {{ completed_tasks_count }} of {{ total_tasks }} tasks</span>
+                </div>
+                <div style="width: 150px; background-color: var(--bg-card); height: 8px; border-radius: 4px; overflow: hidden; border: 1px solid var(--border-color);">
+                    <div style="width: {% if total_tasks > 0 %}{{ completion_rate }}{% else %}0{% endif %}%; background: linear-gradient(90deg, var(--primary), var(--success)); height: 100%; border-radius: 4px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Tasks Checklist -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="fa-solid fa-circle-exclamation" style="color: var(--danger); margin-right: 8px;"></i> Urgent Tasks to Tackle</span>
+                <a href="{% url 'projects:project_list' %}" style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">View All Tasks &rarr;</a>
+            </div>
+            
+            {% if recent_tasks %}
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+                {% for task in recent_tasks %}
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                    <div style="display: flex; align-items: center; gap: 14px;">
+                        <input type="checkbox" class="task-toggle-checkbox" 
+                               data-task-id="{{ task.id }}" 
+                               {% if task.status == 'DONE' %}checked{% endif %}
+                               onchange="toggleTaskStatus(this)">
+                        <div>
+                            <span class="task-label {% if task.status == 'DONE' %}completed-item{% endif %}" id="task-text-{{ task.id }}" style="font-size: 0.9rem; font-weight: 600;">
+                                {{ task.title }}
+                            </span>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                                {% if task.due_date %}Due: {{ task.due_date }}{% else %}No due date{% endif %} | 
+                                <span style="text-transform: uppercase;">{{ task.list.project.name }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="badge {% if task.priority == 'HIGH' %}badge-danger{% elif task.priority == 'MEDIUM' %}badge-warning{% else %}badge-info{% endif %}">
+                            {{ task.priority }}
+                        </span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="text-align: center; padding: 40px 0; color: var(--text-muted);">
+                <i class="fa-solid fa-face-smile" style="font-size: 2rem; margin-bottom: 12px; display: block;"></i>
+                No pending tasks found! Create lists and items in your projects to get started.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right Column: Documents and Notes -->
+    <div class="dashboard-right">
+        <!-- Recent Notes Card -->
+        <div class="card" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="card-header">
+                <span class="card-title"><i class="fa-solid fa-file-pen" style="color: var(--info); margin-right: 8px;"></i> Recent Ideas & Notes</span>
+                <a href="{% url 'documents:document_list' %}" style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">All Notes &rarr;</a>
+            </div>
+            
+            {% if recent_documents %}
+            <div class="document-list" style="flex-grow: 1;">
+                {% for doc in recent_documents %}
+                <a href="{% url 'documents:document_detail' doc.id %}" class="document-item">
+                    <div class="doc-info">
+                        <i class="fa-regular fa-file-lines doc-icon"></i>
+                        <div>
+                            <div class="doc-name">{{ doc.title }}</div>
+                            <div class="doc-meta">Edited: {{ doc.updated_at|date:"M d, Y" }}</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right" style="font-size: 0.75rem; color: var(--text-muted);"></i>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="text-align: center; padding: 60px 0; color: var(--text-muted); flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                <i class="fa-regular fa-lightbulb" style="font-size: 2.2rem; margin-bottom: 14px; color: var(--warning);"></i>
+                <p style="font-size: 0.9rem; margin-bottom: 8px;">No documents saved yet.</p>
+                <span style="font-size: 0.75rem;">Jot down ideas, design decisions, and project structures.</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // AJAX to toggle task status dynamically from dashboard
+    function toggleTaskStatus(checkbox) {
+        const taskId = checkbox.dataset.taskId;
+        const taskText = document.getElementById(`task-text-${taskId}`);
+        const isChecked = checkbox.checked;
+        
+        // Optimistic UI updates
+        if (isChecked) {
+            taskText.classList.add('completed-item');
+        } else {
+            taskText.classList.remove('completed-item');
+        }
+        
+        // Fetch to send toggle state to server
+        fetch(`/projects/tasks/${taskId}/toggle/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                'status': isChecked ? 'DONE' : 'TODO'
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                // Rollback UI on error
+                checkbox.checked = !isChecked;
+                taskText.classList.toggle('completed-item');
+                alert('Error updating task status.');
+            } else {
+                console.log(`Task ${taskId} status updated successfully.`);
+            }
+        })
+        .catch(err => {
+            checkbox.checked = !isChecked;
+            taskText.classList.toggle('completed-item');
+            console.error('AJAX Error:', err);
+        });
+    }
+</script>
+{% endblock %}

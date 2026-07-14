@@ -1,0 +1,161 @@
+import markdown
+import json
+from django.shortcuts import render, get_object_or_404, redirect
+from django.utils.safestring import mark_safe
+from django.contrib import messages
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+from .models import Document
+from projects.models import Project
+
+def document_list(request):
+    """
+    Renders all saved wiki articles, design documents, and ideas.
+    """
+    documents = Document.objects.filter(business=request.business).order_by('-updated_at')
+    return render(request, 'documents/document_list.html', {'documents': documents})
+
+
+def document_detail(request, pk):
+    """
+    Server-renders a Document, converting Markdown elements into safe HTML code
+    for high-fidelity premium viewing. Parses task lists dynamically.
+    """
+    document = get_object_or_404(Document, pk=pk, business=request.business)
+    
+    # Pre-parse task items [ ] and [x] to render styled, interactive checkboxes
+    raw_content = document.content
+    lines = raw_content.split('\n')
+    processed_lines = []
+    idx = 0
+    for line in lines:
+        if '[ ]' in line:
+            line = line.replace('[ ]', f'<input type="checkbox" class="task-toggle-checkbox doc-checklist-checkbox" data-idx="{idx}" onclick="toggleDocChecklist(this)" style="display: inline-block; vertical-align: middle; margin-right: 8px;">')
+            idx += 1
+        elif '[x]' in line:
+            line = line.replace('[x]', f'<input type="checkbox" class="task-toggle-checkbox doc-checklist-checkbox" checked data-idx="{idx}" onclick="toggleDocChecklist(this)" style="display: inline-block; vertical-align: middle; margin-right: 8px;">')
+            idx += 1
+        processed_lines.append(line)
+        
+    processed_content = '\n'.join(processed_lines)
+    
+    # Compile markdown content into HTML with support for tables and code blocks
+    compiled_html = markdown.markdown(
+        processed_content,
+        extensions=['fenced_code', 'tables', 'nl2br', 'toc']
+    )
+    
+    context = {
+        'document': document,
+        'compiled_html': mark_safe(compiled_html)
+    }
+    return render(request, 'documents/document_detail.html', context)
+
+
+def document_create(request):
+    """
+    Handles drawing and submitting the note creation screen.
+    Includes live side-by-side preview panel variables.
+    """
+    if request.method == 'POST':
+        title = request.POST.get('title')
+        content = request.POST.get('content', '')
+        project_id = request.POST.get('project')
+        
+        project = None
+        if project_id:
+            project = get_object_or_404(Project, pk=project_id, business=request.business)
+            
+        if title:
+            doc = Document.objects.create(
+                title=title,
+                content=content,
+                project=project,
+                business=request.business
+            )
+            messages.success(request, f"Document '{title}' created successfully.")
+            return redirect('documents:document_detail', pk=doc.pk)
+        else:
+            messages.error(request, "A document title is required.")
+            
+    projects = Project.objects.filter(business=request.business)
+    return render(request, 'documents/document_form.html', {
+        'projects': projects,
+        'is_create': True
+    })
+
+
+def document_update(request, pk):
+    """
+    Modifies an existing Markdown document.
+    """
+    document = get_object_or_404(Document, pk=pk, business=request.business)
+    
+    if request.method == 'POST':
+        title = request.POST.get('title')
+        content = request.POST.get('content', '')
+        project_id = request.POST.get('project')
+        
+        project = None
+        if project_id:
+            project = get_object_or_404(Project, pk=project_id, business=request.business)
+            
+        if title:
+            document.title = title
+            document.content = content
+            document.project = project
+            document.save()
+            messages.success(request, f"Document '{title}' updated successfully.")
+            return redirect('documents:document_detail', pk=document.pk)
+        else:
+            messages.error(request, "A document title is required.")
+            
+    projects = Project.objects.filter(business=request.business)
+    return render(request, 'documents/document_form.html', {
+        'document': document,
+        'projects': projects,
+        'is_create': False
+    })
+
+
+def document_delete(request, pk):
+    """
+    Deletes a specific note space.
+    """
+    if request.method == 'POST':
+        document = get_object_or_404(Document, pk=pk, business=request.business)
+        title = document.title
+        document.delete()
+        messages.success(request, f"Document '{title}' deleted successfully.")
+    return redirect('documents:document_list')
+
+
+@require_POST
+def document_checklist_toggle(request, pk):
+    """
+    AJAX endpoint to toggle a checklist checkbox item directly inside a Document.
+    """
+    document = get_object_or_404(Document, pk=pk, business=request.business)
+    try:
+        data = json.loads(request.body)
+        target_idx = int(data.get('index'))
+        is_checked = bool(data.get('checked'))
+        
+        lines = document.content.split('\n')
+        current_idx = 0
+        for i, line in enumerate(lines):
+            # Check for checklists
+            if '[ ]' in line or '[x]' in line:
+                if current_idx == target_idx:
+                    if is_checked:
+                        lines[i] = line.replace('[ ]', '[x]')
+                    else:
+                        lines[i] = line.replace('[x]', '[ ]')
+                    break
+                current_idx += 1
+                
+        document.content = '\n'.join(lines)
+        document.save()
+        return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)

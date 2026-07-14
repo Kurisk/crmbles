@@ -1,0 +1,84 @@
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Name">Business Name *</label>
+        <input class="form-control" id="{{ prefix }}Name" name="name" type="text" required>
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}DisplayName">Display Name</label>
+        <input class="form-control" id="{{ prefix }}DisplayName" name="display_name" type="text">
+    </div>
+</div>
+<div class="form-group">
+    <label class="form-label" for="{{ prefix }}LegalName">Legal Name</label>
+    <input class="form-control" id="{{ prefix }}LegalName" name="legal_name" type="text">
+</div>
+<div class="form-group">
+    <label class="form-label" for="{{ prefix }}AddressLine1">Address Line 1</label>
+    <input class="form-control" id="{{ prefix }}AddressLine1" name="address_line1" type="text">
+</div>
+<div class="form-group">
+    <label class="form-label" for="{{ prefix }}AddressLine2">Address Line 2</label>
+    <input class="form-control" id="{{ prefix }}AddressLine2" name="address_line2" type="text">
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 120px; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}City">City</label>
+        <input class="form-control" id="{{ prefix }}City" name="city" type="text">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}State">State</label>
+        <input class="form-control" id="{{ prefix }}State" name="state" type="text">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}PostalCode">ZIP</label>
+        <input class="form-control" id="{{ prefix }}PostalCode" name="postal_code" type="text">
+    </div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Country">Country</label>
+        <input class="form-control" id="{{ prefix }}Country" name="country" type="text" value="United States">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Phone">Phone</label>
+        <input class="form-control" id="{{ prefix }}Phone" name="phone" type="text">
+    </div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Email">Email</label>
+        <input class="form-control" id="{{ prefix }}Email" name="email" type="email">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Website">Website</label>
+        <input class="form-control" id="{{ prefix }}Website" name="website" type="url">
+    </div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}TaxId">Tax ID / EIN</label>
+        <input class="form-control" id="{{ prefix }}TaxId" name="tax_id" type="text">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}DefaultCurrency">Currency</label>
+        <input class="form-control" id="{{ prefix }}DefaultCurrency" name="default_currency" type="text" value="USD" maxlength="3">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}FiscalYearStartMonth">Fiscal Start Month</label>
+        <input class="form-control" id="{{ prefix }}FiscalYearStartMonth" name="fiscal_year_start_month" type="number" min="1" max="12" value="1">
+    </div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}InvoicePrefix">Invoice Prefix</label>
+        <input class="form-control" id="{{ prefix }}InvoicePrefix" name="invoice_prefix" type="text" placeholder="e.g. DOW">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}BrandColor">Brand Color</label>
+        <input class="form-control" id="{{ prefix }}BrandColor" name="brand_color" type="text" value="#6366f1">
+    </div>
+</div>
+<label style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px; color: var(--text-secondary); font-weight: 700; font-size: 0.85rem;">
+    <input id="{{ prefix }}IsActive" type="checkbox" name="is_active" checked>
+    Active business
+</label>

@@ -1,0 +1,97 @@
+{% extends 'core/base.html' %}
+
+{% block title %}{{ document.title }} | CRMbles{% endblock %}
+
+{% block header_title %}Document Viewer{% endblock %}
+{% block header_subtitle %}Reviewing saved note sheet content.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'documents:document_list' %}" class="btn btn-secondary">
+    <i class="fa-solid fa-arrow-left"></i> All Notes
+</a>
+<a href="{% url 'documents:document_update' document.id %}" class="btn btn-primary">
+    <i class="fa-regular fa-pen-to-square"></i> Edit Note
+</a>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 900px; margin: 0 auto;">
+    <!-- Document Header Info Card -->
+    <div class="card" style="margin-bottom: 24px; padding: 24px 32px; background-color: var(--bg-sidebar); border-bottom-left-radius: 0; border-bottom-right-radius: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <h1 style="font-family: var(--font-heading); font-size: 2rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">
+                    {{ document.title }}
+                </h1>
+                
+                <div style="display: flex; align-items: center; gap: 12px; font-size: 0.8rem; color: var(--text-muted);">
+                    <span>Published: {{ document.created_at|date:"M d, Y" }}</span>
+                    <span>&bull;</span>
+                    <span>Last Updated: {{ document.updated_at|date:"M d, Y, h:i A" }}</span>
+                </div>
+            </div>
+            
+            {% if document.project %}
+            <div>
+                <span style="font-size: 0.75rem; color: var(--text-secondary); display: block; text-align: right; margin-bottom: 4px; font-weight: 600;">Linked Workspace</span>
+                <span class="badge badge-success" style="font-size: 0.8rem; padding: 4px 12px; border-radius: 20px;">
+                    <i class="fa-solid fa-folder-open" style="margin-right: 6px;"></i>
+                    {{ document.project.name }}
+                </span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Document Content Render Pane -->
+    <div class="card" style="padding: 40px 48px; border-top-left-radius: 0; border-top-right-radius: 0; min-height: 400px; box-shadow: var(--shadow-md);">
+        <div class="markdown-body">
+            {{ compiled_html }}
+        </div>
+    </div>
+
+    <!-- Document Control Footer -->
+    <div style="margin-top: 32px; display: flex; justify-content: flex-end; gap: 16px;">
+        <form action="{% url 'documents:document_delete' document.id %}" method="POST" onsubmit="return confirm('Permanently delete this document?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm" style="padding: 10px 20px;">
+                <i class="fa-regular fa-trash-can" style="margin-right: 6px;"></i> Delete Document
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleDocChecklist(checkbox) {
+        const idx = checkbox.dataset.idx;
+        const isChecked = checkbox.checked;
+        
+        // Asynchronously post checklist updates to saving engine
+        fetch(`/documents/{{ document.id }}/toggle-checklist/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                'index': idx,
+                'checked': isChecked
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                checkbox.checked = !isChecked;
+                alert('Error updating document checklist.');
+            } else {
+                console.log(`Document checklist item ${idx} updated successfully.`);
+            }
+        })
+        .catch(err => {
+            checkbox.checked = !isChecked;
+            console.error('AJAX Error:', err);
+        });
+    }
+</script>
+{% endblock %}

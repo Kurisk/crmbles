@@ -1,0 +1,134 @@
+{% extends 'core/base.html' %}
+
+{% block title %}
+    {% if is_create %}Create Document{% else %}Edit: {{ document.title }}{% endif %} | CRMbles
+{% endblock %}
+
+{% block header_title %}
+    {% if is_create %}Create Document{% else %}Edit: {{ document.title }}{% endif %}
+{% endblock %}
+{% block header_subtitle %}Write blueprints and ideas using premium live side-by-side Markdown.{% endblock %}
+
+{% block header_actions %}
+<a href="{% if is_create %}{% url 'documents:document_list' %}{% else %}{% url 'documents:document_detail' document.id %}{% endif %}" class="btn btn-secondary">
+    Cancel
+</a>
+<button type="submit" form="docForm" class="btn btn-primary">
+    <i class="fa-solid fa-cloud-arrow-up"></i> Save Document
+</button>
+{% endblock %}
+
+{% block extra_css %}
+<!-- Optional extra style tweaks to optimize split-pane height -->
+<style>
+    .editor-grid {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr;
+        gap: 24px;
+        margin-top: 10px;
+        height: calc(100vh - 210px);
+    }
+    
+    @media (max-width: 992px) {
+        .editor-grid {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        .preview-pane {
+            height: 350px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<form id="docForm" method="POST" action="{% if is_create %}{% url 'documents:document_create' %}{% else %}{% url 'documents:document_update' document.id %}{% endif %}" style="display: flex; flex-direction: column; height: 100%;">
+    {% csrf_token %}
+    
+    <!-- Meta details card -->
+    <div class="card" style="padding: 16px 24px; margin-bottom: 16px;">
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; align-items: end;">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="docTitle" class="form-label" style="font-size: 0.8rem;">Document Title *</label>
+                <input type="text" class="form-control" id="docTitle" name="title" required 
+                       value="{% if not is_create %}{{ document.title }}{% endif %}" 
+                       placeholder="e.g. Dowitz Business Launch Criteria" autocomplete="off" style="padding: 8px 12px;">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="docProject" class="form-label" style="font-size: 0.8rem;">Link to Project Workspace</label>
+                <select class="form-control" id="docProject" name="project" style="padding: 8px 12px; height: 38px;">
+                    <option value="">-- Global Note (No Project) --</option>
+                    {% for proj in projects %}
+                    <option value="{{ proj.id }}" {% if not is_create and document.project.id == proj.id %}selected{% endif %}>
+                        {{ proj.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Split-Pane Workspace Editor -->
+    <div class="editor-grid">
+        <!-- Editor Input Panel -->
+        <div class="editor-pane">
+            <div class="pane-title">
+                <span><i class="fa-solid fa-code" style="color: var(--primary); margin-right: 6px;"></i> Markdown Editor</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted); text-transform: none;">Supports headings, bold, codes, tables</span>
+            </div>
+            <textarea id="markdownTextarea" name="content" placeholder="# Title Here&#10;&#10;Draft your notes, scopes, and instructions using markdown syntax. ...">{% if not is_create %}{{ document.content }}{% endif %}</textarea>
+        </div>
+
+        <!-- Real-Time Render Panel -->
+        <div class="preview-pane">
+            <div class="pane-title" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 16px;">
+                <span><i class="fa-regular fa-eye" style="color: var(--info); margin-right: 6px;"></i> Live Styled Preview</span>
+                <span class="badge badge-info" style="font-size: 0.65rem;">Updated Realtime</span>
+            </div>
+            <div class="markdown-body" id="previewContainer">
+                <!-- Javascript will load parsed markdown code here dynamically -->
+            </div>
+        </div>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Marked.js CDN for rapid high-fidelity local markdown parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const textarea = document.getElementById('markdownTextarea');
+        const preview = document.getElementById('previewContainer');
+        
+        // Safety configure marked.js options
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            headerIds: false,
+            mangle: false
+        });
+
+        // Dynamic rendering function
+        function updatePreview() {
+            const rawText = textarea.value;
+            if (rawText.trim() === '') {
+                preview.innerHTML = '<span style="color: var(--text-muted); font-style: italic;">Nothing to preview yet. Type on the left editor.</span>';
+                return;
+            }
+            try {
+                preview.innerHTML = marked.parse(rawText);
+            } catch (err) {
+                preview.innerHTML = `<span style="color: var(--danger);">Parsing Error: ${err.message}</span>`;
+            }
+        }
+
+        // Bind events
+        textarea.addEventListener('input', updatePreview);
+        
+        // Initial render
+        updatePreview();
+    });
+</script>
+{% endblock %}

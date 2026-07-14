@@ -1,0 +1,1182 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Vendors & Suppliers | CRMbles{% endblock %}
+
+{% block header_title %}Vendor Directory{% endblock %}
+{% block header_subtitle %}Keep track of manufacturing research, contact records, and raw material suppliers.{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="openNewVendorModal()">
+    <i class="fa-solid fa-plus-circle"></i> Add Vendor
+</button>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .vendor-card {
+        min-height: 128px;
+        transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .vendor-card-detail {
+        display: block;
+    }
+
+    body.vendor-density-compact .vendor-card {
+        padding: 16px !important;
+    }
+
+    body.vendor-density-compact .vendor-card-detail {
+        display: none !important;
+    }
+
+    body.vendor-density-expanded .vendor-card-detail {
+        display: block !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Vendor Summary Metrics -->
+<div class="metrics-grid" style="margin-bottom: 24px;">
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--primary-glow); color: var(--primary); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-store"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ total_vendors }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Total Vendors</span>
+        </div>
+    </div>
+    
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--warning-bg); color: var(--warning); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-magnifying-glass"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ researched_vendors }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Researched Only</span>
+        </div>
+    </div>
+
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--success-bg); color: var(--success); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ purchased_vendors }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Purchased From</span>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Filter Controls -->
+<div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px;">
+    <!-- Inline Search Form -->
+    <form action="" method="GET" style="display: flex; gap: 12px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm);">
+        <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Search vendors by name, notes, or website link..." autocomplete="off" style="flex-grow: 1; padding: 8px 14px; margin-bottom: 0;">
+        <button type="submit" class="btn btn-secondary" style="padding: 8px 18px;">
+            <i class="fa-solid fa-magnifying-glass"></i> Search
+        </button>
+        {% if q %}
+        <a href="{% url 'vendors:vendor_list' %}" class="btn btn-danger btn-sm" style="padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center;">
+            Clear Search
+        </a>
+        {% endif %}
+    </form>
+
+    <!-- Tag Filter Bar -->
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; background-color: rgba(15, 21, 36, 0.35); border: 1px solid var(--border-color); padding: 12px 20px; border-radius: var(--radius-sm); backdrop-filter: var(--glass-blur);">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-filter" style="color: var(--primary);"></i> Filter Offers:
+            </span>
+            <div id="filterTagContainer" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                {% for tag in active_tags %}
+                <button class="btn-filter-tag" data-tag-id="{{ tag.id }}" onclick="toggleTagFilter({{ tag.id }})" style="background-color: transparent; border: 1px solid {{ tag.color }}40; color: var(--text-secondary); font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all var(--transition-fast); display: flex; align-items: center; gap: 5px;">
+                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                    {{ tag.name }}
+                </button>
+                {% empty %}
+                <span style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">No active vendor tags. Assigned tags will appear here.</span>
+                {% endfor %}
+                <button id="btnClearFilter" onclick="clearTagFilters()" style="display: none; background: transparent; border: none; color: var(--danger); font-size: 0.72rem; font-weight: 700; cursor: pointer; text-decoration: underline; padding-left: 4px;">
+                    Clear Filter
+                </button>
+            </div>
+        </div>
+        
+        <button class="btn btn-secondary btn-sm" onclick="openCreateTagModal()" style="font-size: 0.72rem; padding: 5px 12px; background-color: transparent; border-color: rgba(255,255,255,0.08);">
+            <i class="fa-solid fa-tags" style="color: var(--success); font-size: 0.8rem;"></i> Manage Tags
+        </button>
+    </div>
+</div>
+
+<!-- View Toggle Buttons -->
+<div style="display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; flex-wrap: wrap;">
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <button class="btn btn-primary" id="btnGridView" onclick="switchView('grid')">
+            <i class="fa-solid fa-table-cells-large"></i> Card Grid View
+        </button>
+        <button class="btn btn-secondary" id="btnSpreadsheetView" onclick="switchView('spreadsheet')">
+            <i class="fa-solid fa-table"></i> Price Comparison Sheet
+        </button>
+    </div>
+    <div id="vendorDensityControls" style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-secondary btn-sm" id="btnVendorDensityToggle" onclick="toggleVendorDensity()" title="Switch between compact and expanded vendor cards">
+            <i class="fa-solid fa-compress" id="vendorDensityIcon"></i>
+            <span id="vendorDensityLabel">Compact View</span>
+        </button>
+    </div>
+</div>
+
+<!-- Grid View Container -->
+<div id="gridViewContainer" style="display: block;">
+    <!-- Vendor Cards Grid Directory -->
+    <div class="dashboard-grid" id="vendorDirectoryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 24px;">
+    {% for vendor in vendors %}
+    <div class="card card-hover vendor-card" id="vendor-card-{{ vendor.id }}"
+         style="display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; position: relative;"
+         data-id="{{ vendor.id }}"
+         data-name="{{ vendor.name }}"
+         data-description="{% if vendor.description %}{{ vendor.description }}{% endif %}"
+         data-website="{{ vendor.website }}"
+         data-email="{{ vendor.email }}"
+         data-phone="{{ vendor.phone }}"
+         data-notes="{% if vendor.notes %}{{ vendor.notes }}{% endif %}"
+         data-purchased="{% if vendor.has_purchased %}true{% else %}false{% endif %}"
+         data-default-category="{% if vendor.default_expense_category %}{{ vendor.default_expense_category.id }}{% endif %}"
+         data-tags="[{% for tag in vendor.tags.all %}{{ tag.id }}{% if not forloop.last %},{% endif %}{% endfor %}]"
+         data-services='[{% for s in vendor.services.all %}{"name": "{{ s.name|escapejs }}", "desc": "{{ s.description|escapejs }}", "price": "{{ s.price|escapejs }}", "notes": "{{ s.notes|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+         onclick="viewVendorDetails(this)">
+        
+        <!-- Header Info -->
+        <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <div>
+                    <h3 class="card-title" style="font-size: 1.1rem; color: var(--text-primary); margin-bottom: 4px;">
+                        <i class="fa-solid fa-store" style="color: var(--primary); margin-right: 6px;"></i> {{ vendor.name }}
+                    </h3>
+                    {% if vendor.description %}
+                    <div style="font-size: 0.8rem; color: var(--text-muted); font-style: italic;">
+                        {{ vendor.description }}
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <span class="badge {% if vendor.has_purchased %}badge-success{% else %}badge-warning{% endif %}" style="font-size: 0.68rem; padding: 2px 10px;">
+                    {% if vendor.has_purchased %}
+                    <i class="fa-solid fa-circle-check" style="margin-right: 4px;"></i> Purchased
+                    {% else %}
+                    <i class="fa-solid fa-hourglass-half" style="margin-right: 4px;"></i> Researched
+                    {% endif %}
+                </span>
+            </div>
+
+            <!-- Contact Details -->
+            <div class="vendor-card-detail vendor-contact-details" style="display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 12px;">
+                {% if vendor.website %}
+                <a href="{{ vendor.website }}" target="_blank" onclick="event.stopPropagation()" style="display: flex; align-items: center; gap: 6px; color: var(--info);" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                    <i class="fa-solid fa-globe" style="width: 14px;"></i> {{ vendor.website }}
+                </a>
+                {% endif %}
+                {% if vendor.email %}
+                <span style="display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-regular fa-envelope" style="width: 14px;"></i> {{ vendor.email }}
+                </span>
+                {% endif %}
+                {% if vendor.phone %}
+                <span style="display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-phone" style="width: 14px;"></i> {{ vendor.phone }}
+                </span>
+                {% endif %}
+            </div>
+
+            <!-- Notes summary -->
+            {% if vendor.notes %}
+            <div class="vendor-card-detail" style="margin-bottom: 16px;">
+                <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Research Notes</label>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                    {{ vendor.notes }}
+                </p>
+            </div>
+            {% endif %}
+
+            <!-- Services Catalog -->
+            {% if vendor.services.all %}
+            <div class="vendor-card-detail" style="margin-bottom: 16px; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 12px;" onclick="event.stopPropagation()">
+                <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px; margin-bottom: 8px;">
+                    <i class="fa-solid fa-list-check" style="color: var(--success); font-size: 0.75rem;"></i> Services & Pricing
+                </label>
+                <div style="overflow-x: auto; background-color: rgba(0, 0, 0, 0.15); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 6px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem; text-align: left; min-width: 300px;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.06); background-color: rgba(255, 255, 255, 0.01);">
+                                <th style="padding: 6px 10px; font-weight: 600; color: var(--text-primary); width: 45%;">Service</th>
+                                <th style="padding: 6px 10px; font-weight: 600; color: var(--text-primary); width: 30%;">Price</th>
+                                <th style="padding: 6px 10px; font-weight: 600; color: var(--text-primary); width: 25%;">Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for service in vendor.services.all %}
+                            <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.03); transition: background-color var(--transition-fast);" onmouseover="this.style.backgroundColor='rgba(255, 255, 255, 0.02)'" onmouseout="this.style.backgroundColor='transparent'">
+                                <td style="padding: 6px 10px; color: var(--text-secondary); font-weight: 500;">
+                                    <div style="font-weight: 600; color: var(--text-primary);">{{ service.name }}</div>
+                                    {% if service.description %}
+                                    <div style="font-size: 0.7rem; color: var(--text-muted); line-height: 1.2; margin-top: 2px;">{{ service.description }}</div>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 6px 10px; font-weight: 600; color: var(--success);">{{ service.price|default:"-" }}</td>
+                                <td style="padding: 6px 10px; color: var(--text-muted); font-size: 0.72rem;">{{ service.notes|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px; margin-top: 12px;" onclick="event.stopPropagation()">
+            <a href="{% url 'finance:dashboard' %}?vendor={{ vendor.id }}#new-expense" class="btn btn-primary btn-sm" style="font-size: 0.75rem; padding: 6px 12px;">
+                <i class="fa-solid fa-receipt"></i> Create Expense
+            </a>
+        </div>
+    </div>
+    {% empty %}
+    <div style="grid-column: 1 / -1; text-align: center; padding: 60px 0; color: var(--text-muted);">
+        <i class="fa-solid fa-store-slash" style="font-size: 3rem; margin-bottom: 14px; display: block; opacity: 0.45;"></i>
+        <h4 style="font-size: 1.05rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">No Vendors Found</h4>
+        <span style="font-size: 0.82rem;">Create a new manufacturer, record research details, and assign colorful tags!</span>
+    </div>
+    {% endfor %}
+    </div>
+</div>
+
+<!-- Vendor Spreadsheet Comparison View Container -->
+<div id="spreadsheetViewContainer" style="display: none; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 24px; box-shadow: var(--shadow-sm); backdrop-filter: var(--glass-blur);">
+    <div style="overflow-x: auto; width: 100%;">
+        <table class="table" style="width: 100%; border-collapse: collapse; text-align: left; min-width: 900px; margin-bottom: 0;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); background-color: rgba(255, 255, 255, 0.01);">
+                    <th onclick="sortTable(0, 'text')" style="padding: 14px 18px; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: color var(--transition-fast);" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='inherit'">
+                        Vendor <i class="fa-solid fa-sort" style="font-size: 0.75rem; opacity: 0.5; margin-left: 4px;"></i>
+                    </th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">
+                        Line of Business (Description)
+                    </th>
+                    <th onclick="sortTable(2, 'text')" style="padding: 14px 18px; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: color var(--transition-fast);" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='inherit'">
+                        Service / Item <i class="fa-solid fa-sort" style="font-size: 0.75rem; opacity: 0.5; margin-left: 4px;"></i>
+                    </th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">
+                        Service Description
+                    </th>
+                    <th onclick="sortTable(4, 'price')" style="padding: 14px 18px; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: color var(--transition-fast);" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='inherit'">
+                        Price <i class="fa-solid fa-sort" style="font-size: 0.75rem; opacity: 0.5; margin-left: 4px;"></i>
+                    </th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">
+                        Categories
+                    </th>
+                    <th style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">
+                        Internal Notes
+                    </th>
+                </tr>
+            </thead>
+            <tbody id="masterComparisonTableBody">
+                {% for vendor in vendors %}
+                    {% for service in vendor.services.all %}
+                    <tr class="comparison-row" 
+                        data-vendor-id="{{ vendor.id }}" 
+                        data-tags="[{% for tag in vendor.tags.all %}{{ tag.id }}{% if not forloop.last %},{% endif %}{% endfor %}]"
+                        data-vendor-name="{{ vendor.name|escapejs }}"
+                        data-service-name="{{ service.name|escapejs }}"
+                        data-price-val="{% if service.price %}{{ service.price|escapejs }}{% endif %}"
+                        style="border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color var(--transition-fast);" 
+                        onclick="triggerCardClick('vendor-card-{{ vendor.id }}')"
+                        onmouseover="this.style.backgroundColor='rgba(255, 255, 255, 0.02)'" 
+                        onmouseout="this.style.backgroundColor='transparent'">
+                        <td style="padding: 14px 18px; font-weight: 700; color: var(--text-primary);">
+                            <i class="fa-solid fa-store" style="color: var(--primary); font-size: 0.8rem; margin-right: 5px;"></i> {{ vendor.name }}
+                        </td>
+                        <td style="padding: 14px 18px; color: var(--text-secondary); font-size: 0.82rem; font-style: italic;">
+                            {{ vendor.description|default:"-" }}
+                        </td>
+                        <td style="padding: 14px 18px; font-weight: 600; color: var(--text-primary);">
+                            {{ service.name }}
+                        </td>
+                        <td style="padding: 14px 18px; color: var(--text-secondary); font-size: 0.82rem; line-height: 1.4;">
+                            {{ service.description|default:"-" }}
+                        </td>
+                        <td style="padding: 14px 18px; font-weight: 700; color: var(--success);">
+                            {{ service.price|default:"-" }}
+                        </td>
+                        <td style="padding: 14px 18px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                {% for tag in vendor.tags.all %}
+                                <span style="display: inline-flex; align-items: center; gap: 3px; border: 1px solid {{ tag.color }}40; background-color: {{ tag.color }}15; color: {{ tag.color }}; font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; font-weight: 600;">
+                                    {{ tag.name }}
+                                </span>
+                                {% empty %}
+                                <span style="color: var(--text-muted); font-size: 0.72rem; font-style: italic; opacity: 0.4;">-</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td style="padding: 14px 18px; color: var(--text-muted); font-size: 0.78rem;">
+                            {{ service.notes|default:"-" }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    
+                    {% if not vendor.services.all %}
+                    <tr class="comparison-row" 
+                        data-vendor-id="{{ vendor.id }}" 
+                        data-tags="[{% for tag in vendor.tags.all %}{{ tag.id }}{% if not forloop.last %},{% endif %}{% endfor %}]"
+                        data-vendor-name="{{ vendor.name|escapejs }}"
+                        data-service-name=""
+                        data-price-val=""
+                        style="border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color var(--transition-fast); opacity: 0.75;" 
+                        onclick="triggerCardClick('vendor-card-{{ vendor.id }}')"
+                        onmouseover="this.style.backgroundColor='rgba(255, 255, 255, 0.02)'" 
+                        onmouseout="this.style.backgroundColor='transparent'">
+                        <td style="padding: 14px 18px; font-weight: 700; color: var(--text-primary);">
+                            <i class="fa-solid fa-store" style="color: var(--primary); font-size: 0.8rem; margin-right: 5px;"></i> {{ vendor.name }}
+                        </td>
+                        <td style="padding: 14px 18px; color: var(--text-secondary); font-size: 0.82rem; font-style: italic;">
+                            {{ vendor.description|default:"-" }}
+                        </td>
+                        <td colspan="2" style="padding: 14px 18px; color: var(--text-muted); font-style: italic; font-size: 0.78rem; text-align: center;">
+                            No services listed (Researching / Future use)
+                        </td>
+                        <td style="padding: 14px 18px; color: var(--text-muted); font-style: italic; font-size: 0.78rem;">
+                            -
+                        </td>
+                        <td style="padding: 14px 18px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                {% for tag in vendor.tags.all %}
+                                <span style="display: inline-flex; align-items: center; gap: 3px; border: 1px solid {{ tag.color }}40; background-color: {{ tag.color }}15; color: {{ tag.color }}; font-size: 0.65rem; padding: 1px 6px; border-radius: 4px; font-weight: 600;">
+                                    {{ tag.name }}
+                                </span>
+                                {% empty %}
+                                <span style="color: var(--text-muted); font-size: 0.72rem; font-style: italic; opacity: 0.4;">-</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td style="padding: 14px 18px; color: var(--text-muted); font-size: 0.78rem;">
+                            {{ vendor.notes|default:"-" }}
+                        </td>
+                    </tr>
+                    {% endif %}
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px 0; color: var(--text-muted);">
+                        No vendor catalog items available. Add a vendor and a service item!
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal 1: Create Vendor -->
+<div class="modal-overlay" id="newVendorModal">
+    <div class="modal-content" style="max-width: 550px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-plus-circle" style="color: var(--primary); margin-right: 8px;"></i> Add New Vendor</h3>
+            <span class="modal-close" onclick="closeNewVendorModal()">&times;</span>
+        </div>
+        
+        <form action="{% url 'vendors:vendor_create' %}" method="POST" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div class="form-group">
+                    <label for="vendorName" class="form-label">Vendor / Manufacturer Name *</label>
+                    <input type="text" class="form-control" id="vendorName" name="name" required placeholder="e.g. Sticker Mule, CustomInk" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="vendorDescription" class="form-label">Short Description (At a glance)</label>
+                    <input type="text" class="form-control" id="vendorDescription" name="description" placeholder="e.g. Custom sticker printing, clothing supplier" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="vendorWebsite" class="form-label">Website URL</label>
+                        <input type="url" class="form-control" id="vendorWebsite" name="website" placeholder="https://example.com" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="vendorEmail" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="vendorEmail" name="email" placeholder="sales@example.com" style="font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="vendorPhone" class="form-label">Phone Number</label>
+                        <input type="text" class="form-control" id="vendorPhone" name="phone" placeholder="e.g. 555-0192" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group" style="justify-content: flex-end; margin-bottom: 20px;">
+                        <label class="tag-selector-pill" style="cursor: pointer; position: relative; margin-bottom: 2px;">
+                            <input type="checkbox" name="has_purchased" value="true" style="display: none;" onchange="updatePurchasedCheckboxStyle(this)">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-secondary); font-size: 0.82rem; padding: 10px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 100%; transition: all var(--transition-fast);">
+                                <i class="fa-solid fa-circle-check" style="font-size: 0.9rem;"></i> Have Purchased From
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="vendorDefaultCategory" class="form-label">Default Expense Category</label>
+                        <select class="form-control" id="vendorDefaultCategory" name="default_expense_category" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                            <option value="">-- No default category --</option>
+                            {% for cat in all_categories %}
+                            <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-size: 0.85rem;">Vendor Offerings (Tags)</label>
+                    
+                    <!-- Active Tags List (Only selected tags show up) -->
+                    <div id="newVendorActiveTags" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; margin-top: 4px;">
+                        <!-- Selected tags will appear here dynamically -->
+                    </div>
+                    
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <select id="newVendorTagSelect" class="form-control" style="font-size: 0.85rem; padding: 6px 12px; margin-bottom: 0; flex-grow: 1; max-width: 250px; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary); border-radius: 6px;" onchange="addTagFromDropdown('newVendorActiveTags', this)">
+                            <option value="">+ Add Tag / Offering...</option>
+                            {% for tag in all_tags %}
+                            <option value="{{ tag.id }}" data-color="{{ tag.color }}">{{ tag.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="vendorNotes" class="form-label">Research Notes & Catalog Details</label>
+                    <textarea class="form-control" id="vendorNotes" name="notes" rows="3" placeholder="Write price points, minimum orders (MOQ), shipment times..." style="font-size: 0.85rem;"></textarea>
+                </div>
+
+                <!-- Services Dynamic Subform -->
+                <div style="margin-bottom: 20px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <label class="form-label" style="font-size: 0.85rem; margin-bottom: 0; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-list-check" style="color: var(--primary);"></i> Services & Offerings Catalog
+                        </label>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addServiceRow('newVendorServicesContainer')" style="font-size: 0.72rem; padding: 4px 10px; background-color: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.08); display: inline-flex; align-items: center; gap: 4px; border-radius: 6px;">
+                            <i class="fa-solid fa-plus" style="color: var(--success);"></i> Add Item
+                        </button>
+                    </div>
+                    <div id="newVendorServicesContainer" style="display: flex; flex-direction: column; gap: 12px;">
+                        <!-- Dynamic service inputs go here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto;">
+                <button type="button" class="btn btn-secondary" onclick="closeNewVendorModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Vendor</button>
+            </div>
+        </form>
+    </div>
+</div>
+    </div>
+</div>
+
+<!-- Modal 2: Edit & View Vendor Details Workspace -->
+<div class="modal-overlay" id="vendorDetailsModal">
+    <div class="modal-content" style="max-width: 680px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-store" style="color: var(--primary); margin-right: 8px;"></i> Vendor Workspace</h3>
+            <span class="modal-close" onclick="closeVendorDetailsModal()">&times;</span>
+        </div>
+        
+        <form id="editVendorForm" method="POST" action="" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div class="form-group">
+                    <label for="editVendorName" class="form-label" style="font-size: 0.8rem;">Vendor / Manufacturer Name *</label>
+                    <input type="text" class="form-control" id="editVendorName" name="name" required placeholder="Vendor name" autocomplete="off" style="font-size: 0.85rem; font-weight: 600;">
+                </div>
+                
+                <div class="form-group">
+                    <label for="editVendorDescription" class="form-label" style="font-size: 0.8rem;">Short Description (At a glance)</label>
+                    <input type="text" class="form-control" id="editVendorDescription" name="description" placeholder="e.g. Custom sticker printing, clothing supplier" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editVendorWebsite" class="form-label" style="font-size: 0.8rem;">Website URL</label>
+                        <input type="url" class="form-control" id="editVendorWebsite" name="website" placeholder="https://example.com" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editVendorEmail" class="form-label" style="font-size: 0.8rem;">Email Address</label>
+                        <input type="email" class="form-control" id="editVendorEmail" name="email" placeholder="sales@example.com" style="font-size: 0.85rem;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editVendorPhone" class="form-label" style="font-size: 0.8rem;">Phone Number</label>
+                        <input type="text" class="form-control" id="editVendorPhone" name="phone" placeholder="e.g. 555-0192" style="font-size: 0.85rem;">
+                    </div>
+                    
+                    <div class="form-group" style="justify-content: flex-end; margin-bottom: 20px;">
+                        <label class="tag-selector-pill" style="cursor: pointer; position: relative; margin-bottom: 2px;">
+                            <input type="checkbox" name="has_purchased" id="editVendorPurchased" value="true" style="display: none;" onchange="updatePurchasedCheckboxStyle(this)">
+                            <span style="display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border-color); background-color: transparent; color: var(--text-secondary); font-size: 0.82rem; padding: 10px 16px; border-radius: var(--radius-sm); font-weight: 600; width: 100%; transition: all var(--transition-fast);">
+                                <i class="fa-solid fa-circle-check" style="font-size: 0.9rem;"></i> Have Purchased From
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="editVendorDefaultCategory" class="form-label" style="font-size: 0.8rem;">Default Expense Category</label>
+                        <select class="form-control" id="editVendorDefaultCategory" name="default_expense_category" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                            <option value="">-- No default category --</option>
+                            {% for cat in all_categories %}
+                            <option value="{{ cat.id }}">{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-size: 0.8rem;">Vendor Offerings (Tags)</label>
+                    
+                    <!-- Active Tags List (Only selected tags show up) -->
+                    <div id="editVendorActiveTags" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; margin-top: 4px;">
+                        <!-- Selected tags will appear here dynamically -->
+                    </div>
+                    
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <select id="editVendorTagSelect" class="form-control" style="font-size: 0.85rem; padding: 6px 12px; margin-bottom: 0; flex-grow: 1; max-width: 250px; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary); border-radius: 6px;" onchange="addTagFromDropdown('editVendorActiveTags', this)">
+                            <option value="">+ Add Tag / Offering...</option>
+                            {% for tag in all_tags %}
+                            <option value="{{ tag.id }}" data-color="{{ tag.color }}">{{ tag.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editVendorNotes" class="form-label" style="font-size: 0.8rem;">Research Notes & Catalog Details</label>
+                    <textarea class="form-control" id="editVendorNotes" name="notes" rows="4" placeholder="Write price points, minimum orders (MOQ), shipment times..." style="font-size: 0.85rem;"></textarea>
+                </div>
+
+                <!-- Services Dynamic Subform -->
+                <div style="margin-bottom: 20px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <label class="form-label" style="font-size: 0.8rem; margin-bottom: 0; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-list-check" style="color: var(--primary);"></i> Services & Offerings Catalog
+                        </label>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addServiceRow('editVendorServicesContainer')" style="font-size: 0.72rem; padding: 4px 10px; background-color: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.08); display: inline-flex; align-items: center; gap: 4px; border-radius: 6px;">
+                            <i class="fa-solid fa-plus" style="color: var(--success);"></i> Add Item
+                        </button>
+                    </div>
+                    <div id="editVendorServicesContainer" style="display: flex; flex-direction: column; gap: 12px;">
+                        <!-- Dynamic service inputs go here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto; flex-wrap: wrap;">
+                <!-- Cascade Delete Vendor -->
+                <button type="button" class="btn btn-secondary" onclick="triggerDeleteVendor()" style="background-color: transparent; border-color: var(--danger-bg); color: var(--danger);">
+                    <i class="fa-regular fa-trash-can"></i> Delete Vendor
+                </button>
+                
+                <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end;">
+                    <a id="createExpenseFromVendorLink" href="#" class="btn btn-primary">
+                        <i class="fa-solid fa-receipt"></i> Create Expense
+                    </a>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </div>
+        </form>
+        
+        <!-- Separate hidden delete form -->
+        <form id="deleteVendorForm" action="" method="POST" style="display: none;">
+            {% csrf_token %}
+        </form>
+    </div>
+</div>
+<!-- Modal 3: Manage Vendor Tags -->
+<div class="modal-overlay" id="manageTagsModal">
+    <div class="modal-content" style="max-width: 480px; width: 95%;">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-tags" style="color: var(--primary); margin-right: 8px;"></i> Manage Vendor Tags</h3>
+            <span class="modal-close" onclick="closeCreateTagModal()">&times;</span>
+        </div>
+        
+        <!-- Active Tags -->
+        <div style="margin-bottom: 24px;">
+            <label class="form-label" style="font-size: 0.8rem; margin-bottom: 8px; display: block;">Active Tags</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; background-color: rgba(15, 21, 36, 0.3); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm); min-height: 50px; align-items: center;">
+                {% for tag in all_tags %}
+                <span class="badge-tag" style="background-color: {{ tag.color }}15; color: {{ tag.color }}; border: 1px solid {{ tag.color }}30; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                    {{ tag.name }}
+                </span>
+                {% empty %}
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No tags created yet.</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Tag Creator Form -->
+        <form action="{% url 'vendors:vendor_tag_create' %}" method="POST" style="border-top: 1px solid var(--border-color); padding-top: 20px;">
+            {% csrf_token %}
+            <h4 class="card-title" style="font-size: 0.95rem; margin-bottom: 14px; color: var(--text-primary);"><i class="fa-solid fa-plus-circle" style="color: var(--success); margin-right: 6px;"></i> Create Vendor Tag</h4>
+            
+            <div class="form-group">
+                <label for="newTagName" class="form-label" style="font-size: 0.8rem;">Tag Name *</label>
+                <input type="text" class="form-control" id="newTagName" name="name" required placeholder="e.g. Printing, Logistics, Apparel" autocomplete="off" style="font-size: 0.85rem;">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" style="font-size: 0.8rem;">Tag Label Color</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <input type="color" id="newTagColorPicker" value="#6366f1" style="border: none; background: transparent; cursor: pointer; width: 38px; height: 38px; border-radius: 8px; overflow: hidden; padding: 0;" oninput="updateHexColorField(this.value)">
+                    <input type="text" class="form-control" id="newTagColor" name="color" value="#6366f1" required placeholder="#6366f1" style="flex-grow: 1; margin-bottom: 0; font-size: 0.85rem; padding: 8px 12px;" oninput="updateColorPicker(this.value)">
+                </div>
+                <!-- Color Presets -->
+                <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+                    <span class="color-dot" onclick="setPresetColor('#ec4899')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #ec4899; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Pink"></span>
+                    <span class="color-dot" onclick="setPresetColor('#0ea5e9')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #0ea5e9; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Light Blue"></span>
+                    <span class="color-dot" onclick="setPresetColor('#f59e0b')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #f59e0b; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Amber"></span>
+                    <span class="color-dot" onclick="setPresetColor('#10b981')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #10b981; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Emerald"></span>
+                    <span class="color-dot" onclick="setPresetColor('#ef4444')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #ef4444; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Red"></span>
+                    <span class="color-dot" onclick="setPresetColor('#8b5cf6')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #8b5cf6; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Violet"></span>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateTagModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Tag</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Visual Tag Selector styling logic
+    function updateTagPillStyle(checkbox) {
+        const pill = checkbox.closest('.tag-selector-pill').querySelector('span');
+        const color = pill.querySelector('span').style.backgroundColor;
+        if (checkbox.checked) {
+            pill.style.backgroundColor = color + '25'; // 25% opacity background
+            pill.style.borderColor = color;
+            pill.style.color = 'var(--text-primary)';
+            pill.style.boxShadow = `0 0 8px ${color}20`;
+        } else {
+            pill.style.backgroundColor = 'transparent';
+            pill.style.borderColor = color + '40';
+            pill.style.color = 'var(--text-secondary)';
+            pill.style.boxShadow = 'none';
+        }
+    }
+
+    // Have Purchased status checkbox styling logic
+    function updatePurchasedCheckboxStyle(checkbox) {
+        const span = checkbox.closest('.tag-selector-pill').querySelector('span');
+        if (checkbox.checked) {
+            span.style.backgroundColor = 'var(--success-bg)';
+            span.style.borderColor = 'var(--success)';
+            span.style.color = 'var(--success)';
+            span.style.boxShadow = '0 0 10px rgba(16, 185, 129, 0.15)';
+        } else {
+            span.style.backgroundColor = 'transparent';
+            span.style.borderColor = 'var(--border-color)';
+            span.style.color = 'var(--text-secondary)';
+            span.style.boxShadow = 'none';
+        }
+    }
+
+    // Helper function to escape HTML strings safely
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Dynamic row generation for services
+    function createServiceRowHtml(name = '', desc = '', price = '', notes = '') {
+        return `
+        <div class="service-item-row" style="background-color: rgba(255, 255, 255, 0.015); border: 1px solid rgba(255, 255, 255, 0.05); padding: 12px 14px; border-radius: 8px; position: relative; margin-bottom: 8px; transition: border-color var(--transition-fast);">
+            <button type="button" onclick="this.closest('.service-item-row').remove()" style="position: absolute; top: 50%; transform: translateY(-50%); right: 10px; background: transparent; border: none; color: var(--danger); cursor: pointer; font-size: 0.95rem; opacity: 0.6; transition: all var(--transition-fast); display: flex; align-items: center; justify-content: center; height: 32px; width: 32px; border-radius: 6px;" onmouseover="this.style.opacity='1'; this.style.backgroundColor='var(--danger-bg)'" onmouseout="this.style.opacity='0.6'; this.style.backgroundColor='transparent'" title="Remove service">
+                <i class="fa-regular fa-trash-can"></i>
+            </button>
+            <div style="display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 10px; padding-right: 24px; margin-bottom: 10px;">
+                <input type="text" class="form-control" name="service_name[]" value="${escapeHtml(name)}" placeholder="Service / Item Name" style="font-size: 0.8rem; padding: 8px 12px; margin-bottom: 0;">
+                <input type="text" class="form-control" name="service_price[]" value="${escapeHtml(price)}" placeholder="Price (e.g. $1.50)" style="font-size: 0.8rem; padding: 8px 12px; margin-bottom: 0;">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-right: 24px;">
+                <input type="text" class="form-control" name="service_desc[]" value="${escapeHtml(desc)}" placeholder="Service Description" style="font-size: 0.8rem; padding: 8px 12px; margin-bottom: 0;">
+                <input type="text" class="form-control" name="service_notes[]" value="${escapeHtml(notes)}" placeholder="Internal Notes" style="font-size: 0.8rem; padding: 8px 12px; margin-bottom: 0;">
+            </div>
+        </div>
+        `;
+    }
+
+    function addServiceRow(containerId, name = '', desc = '', price = '', notes = '') {
+        const container = document.getElementById(containerId);
+        if (container) {
+            const div = document.createElement('div');
+            div.innerHTML = createServiceRowHtml(name, desc, price, notes).trim();
+            container.appendChild(div.firstChild);
+        }
+    }
+
+    // Dropdown active tag editor logic
+    function addTagFromDropdown(containerId, selectEl) {
+        const tagId = selectEl.value;
+        if (!tagId) return;
+        
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        
+        // Prevent duplicates
+        if (container.querySelector(`[data-tag-id="${tagId}"]`)) {
+            selectEl.value = "";
+            return;
+        }
+        
+        const option = selectEl.options[selectEl.selectedIndex];
+        const tagName = option.text;
+        const color = option.dataset.color || '#6366f1';
+        
+        const badge = document.createElement('div');
+        badge.innerHTML = `
+        <span class="badge-tag-editable" data-tag-id="${tagId}" style="background-color: ${color}20; color: ${color}; border: 1px solid ${color}40; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; margin: 4px 0;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: ${color};"></span>
+            ${escapeHtml(tagName)}
+            <input type="checkbox" name="tags" value="${tagId}" checked style="display: none;">
+            <span onclick="this.closest('.badge-tag-editable').remove()" style="cursor: pointer; font-size: 0.95rem; font-weight: 700; color: ${color}; opacity: 0.7; margin-left: 2px;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">&times;</span>
+        </span>
+        `.trim();
+        
+        container.appendChild(badge.firstChild);
+        selectEl.value = "";
+    }
+
+    // Modal toggling scripts - Add Vendor
+    function openNewVendorModal() {
+        const modal = document.getElementById('newVendorModal');
+        // Reset checkmarks
+        const cbs = modal.querySelectorAll('input[type="checkbox"]');
+        cbs.forEach(cb => {
+            cb.checked = false;
+            if (cb.name === 'has_purchased') updatePurchasedCheckboxStyle(cb);
+        });
+        
+        // Clear active tags list
+        const activeTagsContainer = document.getElementById('newVendorActiveTags');
+        if (activeTagsContainer) {
+            activeTagsContainer.innerHTML = '';
+        }
+        
+        // Clear and add a blank row for services
+        const servicesContainer = document.getElementById('newVendorServicesContainer');
+        if (servicesContainer) {
+            servicesContainer.innerHTML = '';
+            addServiceRow('newVendorServicesContainer');
+        }
+        
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeNewVendorModal() {
+        const modal = document.getElementById('newVendorModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    // Modal toggling scripts - View & Edit Vendor Details
+    function viewVendorDetails(card) {
+        const id = card.dataset.id;
+        const name = card.dataset.name;
+        const website = card.dataset.website;
+        const email = card.dataset.email;
+        const phone = card.dataset.phone;
+        const notes = card.dataset.notes;
+        const description = card.dataset.description || '';
+        const purchased = card.dataset.purchased === 'true';
+        const defaultCategory = card.dataset.defaultCategory || '';
+        
+        // Map form action URLs dynamically
+        document.getElementById('editVendorForm').action = `/vendors/${id}/update/`;
+        document.getElementById('deleteVendorForm').action = `/vendors/${id}/delete/`;
+        document.getElementById('createExpenseFromVendorLink').href = `/finance/?vendor=${id}#new-expense`;
+        
+        // Populate inputs
+        document.getElementById('editVendorName').value = name;
+        document.getElementById('editVendorDescription').value = description;
+        document.getElementById('editVendorWebsite').value = website;
+        document.getElementById('editVendorEmail').value = email;
+        document.getElementById('editVendorPhone').value = phone;
+        document.getElementById('editVendorNotes').value = notes;
+        document.getElementById('editVendorDefaultCategory').value = defaultCategory;
+        
+        // Purchased check state
+        const purchasedCb = document.getElementById('editVendorPurchased');
+        purchasedCb.checked = purchased;
+        updatePurchasedCheckboxStyle(purchasedCb);
+        
+        // Populate and activate tags checkboxes
+        const activeTagsContainer = document.getElementById('editVendorActiveTags');
+        if (activeTagsContainer) {
+            activeTagsContainer.innerHTML = '';
+        }
+        
+        const rawTags = card.dataset.tags;
+        if (rawTags) {
+            try {
+                const tagIds = JSON.parse(rawTags);
+                const selectEl = document.getElementById('editVendorTagSelect');
+                if (selectEl) {
+                    tagIds.forEach(tagId => {
+                        // Find option to get name and color
+                        const option = Array.from(selectEl.options).find(opt => opt.value === String(tagId));
+                        if (option) {
+                            const tagName = option.text;
+                            const color = option.dataset.color || '#6366f1';
+                            
+                            const badge = document.createElement('div');
+                            badge.innerHTML = `
+                            <span class="badge-tag-editable" data-tag-id="${tagId}" style="background-color: ${color}20; color: ${color}; border: 1px solid ${color}40; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; margin: 4px 0;">
+                                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: ${color};"></span>
+                                ${escapeHtml(tagName)}
+                                <input type="checkbox" name="tags" value="${tagId}" checked style="display: none;">
+                                <span onclick="this.closest('.badge-tag-editable').remove()" style="cursor: pointer; font-size: 0.95rem; font-weight: 700; color: ${color}; opacity: 0.7; margin-left: 2px;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">&times;</span>
+                            </span>
+                            `.trim();
+                            activeTagsContainer.appendChild(badge.firstChild);
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Error parsing vendor tags:", err);
+            }
+        }
+        
+        // Populate services
+        const servicesContainer = document.getElementById('editVendorServicesContainer');
+        if (servicesContainer) {
+            servicesContainer.innerHTML = '';
+            const rawServices = card.dataset.services;
+            if (rawServices) {
+                try {
+                    const servicesList = JSON.parse(rawServices);
+                    servicesList.forEach(s => {
+                        addServiceRow('editVendorServicesContainer', s.name, s.desc, s.price, s.notes);
+                    });
+                } catch (err) {
+                    console.error("Error parsing vendor services:", err);
+                }
+            }
+        }
+        
+        // Open Modal
+        const modal = document.getElementById('vendorDetailsModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeVendorDetailsModal() {
+        const modal = document.getElementById('vendorDetailsModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function triggerDeleteVendor() {
+        const form = document.getElementById('deleteVendorForm');
+        if (form && confirm('Permanently remove this vendor from your directory?')) {
+            form.submit();
+        }
+    }
+
+    // Modal triggers for Manage Vendor Tags
+    function openCreateTagModal() {
+        const modal = document.getElementById('manageTagsModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeCreateTagModal() {
+        const modal = document.getElementById('manageTagsModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    
+    function setPresetColor(hex) {
+        document.getElementById('newTagColor').value = hex;
+        document.getElementById('newTagColorPicker').value = hex;
+    }
+    
+    function updateHexColorField(val) {
+        document.getElementById('newTagColor').value = val;
+    }
+    
+    function updateColorPicker(val) {
+        if (val.match(/^#[0-9A-Fa-f]{6}$/)) {
+            document.getElementById('newTagColorPicker').value = val;
+        }
+    }
+
+    // Client-side dynamic tag filtering logic for Vendors
+    let activeFilterTags = new Set();
+    
+    function toggleTagFilter(tagId) {
+        const btn = document.querySelector(`.btn-filter-tag[data-tag-id="${tagId}"]`);
+        const color = btn.querySelector('span').style.backgroundColor;
+        
+        if (activeFilterTags.has(tagId)) {
+            activeFilterTags.delete(tagId);
+            btn.style.backgroundColor = 'transparent';
+            btn.style.borderColor = color + '40';
+            btn.style.color = 'var(--text-secondary)';
+            btn.style.boxShadow = 'none';
+        } else {
+            activeFilterTags.add(tagId);
+            btn.style.backgroundColor = color + '20'; // 20% opacity
+            btn.style.borderColor = color;
+            btn.style.color = 'var(--text-primary)';
+            btn.style.boxShadow = `0 0 10px ${color}25`;
+        }
+        
+        applyTagFilters();
+    }
+    
+    function applyTagFilters() {
+        const hasFilters = activeFilterTags.size > 0;
+        document.getElementById('btnClearFilter').style.display = hasFilters ? 'inline-block' : 'none';
+        
+        // 1. Filter card grid view
+        const cards = document.querySelectorAll('.vendor-card');
+        cards.forEach(card => {
+            if (!hasFilters) {
+                card.style.display = 'flex';
+                return;
+            }
+            
+            let cardTags = [];
+            try {
+                cardTags = JSON.parse(card.dataset.tags || '[]');
+            } catch(e) {}
+            
+            const match = cardTags.some(t => activeFilterTags.has(t));
+            card.style.display = match ? 'flex' : 'none';
+        });
+        
+        // 2. Filter spreadsheet comparison table rows
+        const rows = document.querySelectorAll('.comparison-row');
+        rows.forEach(row => {
+            if (!hasFilters) {
+                row.style.display = '';
+                return;
+            }
+            
+            let rowTags = [];
+            try {
+                rowTags = JSON.parse(row.dataset.tags || '[]');
+            } catch(e) {}
+            
+            const match = rowTags.some(t => activeFilterTags.has(t));
+            row.style.display = match ? '' : 'none';
+        });
+    }
+    
+    function clearTagFilters() {
+        activeFilterTags.clear();
+        const buttons = document.querySelectorAll('.btn-filter-tag');
+        buttons.forEach(btn => {
+            const color = btn.querySelector('span').style.backgroundColor;
+            btn.style.backgroundColor = 'transparent';
+            btn.style.borderColor = color + '40';
+            btn.style.color = 'var(--text-secondary)';
+            btn.style.boxShadow = 'none';
+        });
+        applyTagFilters();
+    }
+
+    // Switch between Card Grid and Price Comparison Spreadsheet View
+    let vendorDensityMode = 'expanded';
+    const vendorDensityStorageKey = 'crmbles.vendorDensity.user.{{ request.user.id|default:"anonymous" }}';
+
+    function getSavedVendorDensity() {
+        try {
+            const savedMode = localStorage.getItem(vendorDensityStorageKey);
+            return ['compact', 'expanded'].includes(savedMode) ? savedMode : 'expanded';
+        } catch (err) {
+            return 'expanded';
+        }
+    }
+
+    function setVendorDensity(mode, persist = true) {
+        vendorDensityMode = mode;
+        document.body.classList.remove('vendor-density-compact', 'vendor-density-expanded');
+        document.body.classList.add(`vendor-density-${mode}`);
+
+        const label = document.getElementById('vendorDensityLabel');
+        const icon = document.getElementById('vendorDensityIcon');
+        if (label) {
+            label.textContent = mode === 'expanded' ? 'Compact View' : 'Expanded View';
+        }
+        if (icon) {
+            icon.className = mode === 'expanded' ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+        }
+        if (persist) {
+            try {
+                localStorage.setItem(vendorDensityStorageKey, mode);
+            } catch (err) {}
+        }
+    }
+
+    function toggleVendorDensity() {
+        setVendorDensity(vendorDensityMode === 'expanded' ? 'compact' : 'expanded');
+    }
+
+    function switchView(view) {
+        const gridBtn = document.getElementById('btnGridView');
+        const sheetBtn = document.getElementById('btnSpreadsheetView');
+        const gridContainer = document.getElementById('gridViewContainer');
+        const sheetContainer = document.getElementById('spreadsheetViewContainer');
+        const densityControls = document.getElementById('vendorDensityControls');
+        
+        if (view === 'grid') {
+            gridContainer.style.display = 'block';
+            sheetContainer.style.display = 'none';
+            densityControls.style.display = 'flex';
+            gridBtn.className = 'btn btn-primary';
+            sheetBtn.className = 'btn btn-secondary';
+            window.location.hash = 'grid';
+        } else {
+            gridContainer.style.display = 'none';
+            sheetContainer.style.display = 'block';
+            densityControls.style.display = 'none';
+            gridBtn.className = 'btn btn-secondary';
+            sheetBtn.className = 'btn btn-primary';
+            window.location.hash = 'spreadsheet';
+        }
+    }
+    
+    // Row click in table to launch modal
+    function triggerCardClick(cardId) {
+        const card = document.getElementById(cardId);
+        if (card) {
+            viewVendorDetails(card);
+        }
+    }
+    
+    // Master Table sorting logic
+    let currentSortCol = -1;
+    let currentSortAsc = true;
+    
+    function sortTable(colIndex, type) {
+        const tbody = document.getElementById('masterComparisonTableBody');
+        const rows = Array.from(tbody.querySelectorAll('.comparison-row'));
+        
+        // Toggling sort direction
+        if (currentSortCol === colIndex) {
+            currentSortAsc = !currentSortAsc;
+        } else {
+            currentSortCol = colIndex;
+            currentSortAsc = true;
+        }
+        
+        rows.sort((a, b) => {
+            let valA = '';
+            let valB = '';
+            
+            if (colIndex === 0) {
+                // Vendor Name
+                valA = a.dataset.vendorName.toLowerCase();
+                valB = b.dataset.vendorName.toLowerCase();
+            } else if (colIndex === 2) {
+                // Service Name
+                valA = a.dataset.serviceName.toLowerCase();
+                valB = b.dataset.serviceName.toLowerCase();
+            } else if (colIndex === 4) {
+                // Price (Numeric sort)
+                const priceA = parsePriceNumber(a.dataset.priceVal);
+                const priceB = parsePriceNumber(b.dataset.priceVal);
+                return currentSortAsc ? priceA - priceB : priceB - priceA;
+            }
+            
+            return currentSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        });
+        
+        // Clear and re-append rows
+        tbody.innerHTML = '';
+        rows.forEach(row => tbody.appendChild(row));
+        
+        // Visual indicator update
+        const headers = document.querySelectorAll('#spreadsheetViewContainer th');
+        headers.forEach((th, idx) => {
+            const icon = th.querySelector('i');
+            if (icon) {
+                if (idx === colIndex) {
+                    icon.className = currentSortAsc ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+                    icon.style.opacity = '1';
+                    icon.style.color = 'var(--primary)';
+                } else {
+                    icon.className = 'fa-solid fa-sort';
+                    icon.style.opacity = '0.5';
+                    icon.style.color = 'inherit';
+                }
+            }
+        });
+    }
+    
+    // Helper to parse price string to a clean float number
+    function parsePriceNumber(priceStr) {
+        if (!priceStr) return currentSortAsc ? Infinity : -Infinity; // Sort empty values to bottom
+        const clean = priceStr.replace(/[^0-9.]/g, '');
+        const floatVal = parseFloat(clean);
+        return isNaN(floatVal) ? (currentSortAsc ? Infinity : -Infinity) : floatVal;
+    }
+
+    // Close modal if user clicks backdrop overlay
+    window.addEventListener('click', (e) => {
+        const newModal = document.getElementById('newVendorModal');
+        const detailsModal = document.getElementById('vendorDetailsModal');
+        const tagModal = document.getElementById('manageTagsModal');
+        if (e.target === newModal) {
+            closeNewVendorModal();
+        }
+        if (e.target === detailsModal) {
+            closeVendorDetailsModal();
+        }
+        if (e.target === tagModal) {
+            closeCreateTagModal();
+        }
+    });
+
+    // Hash routing initialization
+    document.addEventListener('DOMContentLoaded', () => {
+        setVendorDensity(getSavedVendorDensity(), false);
+        if (window.location.hash === '#spreadsheet') {
+            switchView('spreadsheet');
+        } else {
+            switchView('grid');
+        }
+    });
+</script>
+{% endblock %}

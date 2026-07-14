@@ -1,0 +1,1095 @@
+{% extends 'core/base.html' %}
+
+{% block title %}{{ project.name }} | CRMbles{% endblock %}
+
+{% block header_title %}{{ project.name }} Board{% endblock %}
+{% block header_subtitle %}{% if project.description %}{{ project.description }}{% else %}Track tasks, manage checklists, and organize plans.{% endif %}{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'projects:project_list' %}" class="btn btn-secondary">
+    <i class="fa-solid fa-arrow-left"></i> Back to Projects
+</a>
+<button class="btn btn-primary" onclick="openNewListModal()">
+    <i class="fa-solid fa-plus-circle"></i> Create List
+</button>
+{% endblock %}
+
+{% block content %}
+<!-- Project Board Metrics Bar -->
+<div class="metrics-grid" style="margin-bottom: 24px;">
+    <div class="card metric-card" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--primary-glow); color: var(--primary); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-layer-group"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ task_lists.count }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Task Lists</span>
+        </div>
+    </div>
+    
+    <div class="card metric-card" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--warning-bg); color: var(--warning); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-hourglass-half"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ pending_tasks }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Pending Tasks</span>
+        </div>
+    </div>
+
+    <div class="card metric-card" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--success-bg); color: var(--success); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-check-double"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ completed_tasks }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Completed Tasks</span>
+        </div>
+    </div>
+
+    <!-- Board Progress slider -->
+    <div class="card metric-card" style="padding: 16px 20px;">
+        <div style="width: 100%;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px; font-weight: 600;">
+                <span style="color: var(--text-secondary);">Board Progress</span>
+                <span>{{ completion_rate }}%</span>
+            </div>
+            <div style="background-color: var(--bg-sidebar); height: 6px; border-radius: 3px; overflow: hidden; border: 1px solid var(--border-color);">
+                <div style="width: {{ completion_rate }}%; background: linear-gradient(90deg, var(--primary), var(--success)); height: 100%; border-radius: 3px;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Toggle Buttons -->
+<div style="display: flex; gap: 12px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+    <button class="btn btn-primary" id="btnBoardView" onclick="switchView('board')">
+        <i class="fa-solid fa-table-columns"></i> Kanban Board View
+    </button>
+    <button class="btn btn-secondary" id="btnListView" onclick="switchView('list')">
+        <i class="fa-solid fa-list-check"></i> Master Task List View
+    </button>
+</div>
+
+<!-- Tag Filter Bar and Manage Tags Trigger -->
+<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; background-color: rgba(15, 21, 36, 0.35); border: 1px solid var(--border-color); padding: 12px 20px; border-radius: var(--radius-sm); backdrop-filter: var(--glass-blur);">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-filter" style="color: var(--primary);"></i> Filter Tags:
+        </span>
+        <div id="filterTagContainer" style="display: flex; flex-wrap: wrap; gap: 8px;">
+            {% for tag in active_tags %}
+            <button class="btn-filter-tag" data-tag-id="{{ tag.id }}" onclick="toggleTagFilter({{ tag.id }})" style="background-color: transparent; border: 1px solid {{ tag.color }}40; color: var(--text-secondary); font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all var(--transition-fast); display: flex; align-items: center; gap: 5px;">
+                <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                {{ tag.name }}
+            </button>
+            {% empty %}
+            <span style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">No active task tags. Assigned tags will appear here.</span>
+            {% endfor %}
+            <button id="btnClearFilter" onclick="clearTagFilters()" style="display: none; background: transparent; border: none; color: var(--danger); font-size: 0.72rem; font-weight: 700; cursor: pointer; text-decoration: underline; padding-left: 4px;">
+                Clear Filter
+            </button>
+        </div>
+    </div>
+    
+    <button class="btn btn-secondary btn-sm" onclick="openCreateTagModal()" style="font-size: 0.72rem; padding: 5px 12px; background-color: transparent; border-color: rgba(255,255,255,0.08);">
+        <i class="fa-solid fa-tags" style="color: var(--success); font-size: 0.8rem;"></i> Manage Workspace Tags
+    </button>
+</div>
+
+<!-- Board Scrolling Space -->
+<div id="boardViewContainer" style="display: flex; gap: 24px; overflow-x: auto; padding-bottom: 24px; align-items: flex-start; min-height: calc(100vh - 280px);">
+    {% if task_lists %}
+        {% for list in task_lists %}
+        <div class="kanban-column" style="width: 320px; flex-shrink: 0;">
+            <!-- Column Header -->
+            <div class="column-header" style="position: relative;">
+                <div class="column-title">
+                    <i class="fa-solid fa-list-ul" style="color: var(--primary); font-size: 0.85rem;"></i>
+                    <span>{{ list.name }}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="column-count">{{ list.tasks.count }}</span>
+                    <!-- Column Actions Hamburger Menu -->
+                    <button onclick="toggleColumnMenu({{ list.id }}, event)" style="background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.95rem; padding: 2px 4px; display: flex; align-items: center; justify-content: center; transition: var(--transition-fast);" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'" title="Column Options">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                </div>
+                
+                <!-- Dropdown Menu -->
+                <div id="columnMenu-{{ list.id }}" class="column-options-dropdown" style="display: none; position: absolute; top: 38px; right: 0; padding: 6px; z-index: 100; min-width: 150px; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);">
+                    <button onclick="openEditListModal({{ list.id }}, '{{ list.name|escapejs }}', '{{ list.description|escapejs }}', event)" style="display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; background: transparent; border: none; font-size: 0.8rem; cursor: pointer; color: var(--text-primary); border-radius: 4px; transition: var(--transition-fast);" onmouseover="this.style.backgroundColor='var(--bg-sidebar)'" onmouseout="this.style.backgroundColor='transparent'">
+                        <i class="fa-regular fa-pen-to-square" style="color: var(--info);"></i> Rename Column
+                    </button>
+                    <form action="{% url 'projects:task_list_delete' list.id %}" method="POST" onsubmit="return confirm('Permanently delete this list column and all of its tasks?');" style="width: 100%; margin: 0;" onclick="event.stopPropagation()">
+                        {% csrf_token %}
+                        <button type="submit" style="display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 8px 12px; background: transparent; border: none; font-size: 0.8rem; cursor: pointer; color: var(--danger); border-radius: 4px; transition: var(--transition-fast);" onmouseover="this.style.backgroundColor='var(--danger-bg)'" onmouseout="this.style.backgroundColor='transparent'">
+                            <i class="fa-regular fa-trash-can"></i> Delete Column
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            {% if list.description %}
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: -8px; padding-left: 2px;">{{ list.description }}</p>
+            {% endif %}
+            
+            <!-- Tasks Area -->
+            <div style="display: flex; flex-direction: column; gap: 12px; flex-grow: 1; padding: 2px;">
+                {% for task in list.tasks.all %}
+                <div class="task-card" id="task-card-{{ task.id }}" 
+                     style="cursor: pointer;"
+                     data-id="{{ task.id }}"
+                     data-list-id="{{ list.id }}"
+                     data-title="{{ task.title }}" 
+                     data-desc="{% if task.description %}{{ task.description }}{% endif %}" 
+                     data-priority="{{ task.priority }}" 
+                     data-raw-due="{% if task.due_date %}{{ task.due_date|date:'Y-m-d' }}{% endif %}"
+                     data-due="{% if task.due_date %}{{ task.due_date|date:'M d, Y' }}{% else %}No deadline set{% endif %}" 
+                     data-status="{{ task.status }}"
+                     data-list="{{ list.name }}"
+                     data-tags="[{% for tag in task.tags.all %}{{ tag.id }}{% if not forloop.last %},{% endif %}{% endfor %}]"
+                     onclick="viewTaskDetails(this)">
+                    <div class="task-header">
+                        <div style="display: flex; align-items: flex-start; gap: 10px;">
+                            <!-- Task checkbox -->
+                            <input type="checkbox" class="task-toggle-checkbox" 
+                                   data-task-id="{{ task.id }}" 
+                                   {% if task.status == 'DONE' %}checked{% endif %}
+                                   onchange="toggleTaskStatus(this)"
+                                   onclick="event.stopPropagation()">
+                            <div>
+                                <span class="task-title {% if task.status == 'DONE' %}completed-item{% endif %}" id="task-title-{{ task.id }}">
+                                    {{ task.title }}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Delete specific task -->
+                        <form action="{% url 'projects:task_delete' task.id %}" method="POST" onsubmit="return confirm('Delete this task?');" onclick="event.stopPropagation()">
+                            {% csrf_token %}
+                            <button type="submit" style="background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.8rem; transition: var(--transition-fast);" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-muted)'">
+                                <i class="fa-regular fa-trash-can"></i>
+                            </button>
+                        </form>
+                    </div>
+                    
+                    {% if task.description %}
+                    <p class="task-desc" id="task-desc-{{ task.id }}" style="padding-left: 30px; {% if task.status == 'DONE' %}opacity: 0.4; text-decoration: line-through;{% endif %}">
+                        {{ task.description }}
+                    </p>
+                    {% endif %}
+                    
+                    <!-- Task tags list visual display -->
+                    <div class="task-card-tags" style="display: flex; flex-wrap: wrap; gap: 6px; padding-left: 30px; margin-top: -4px; margin-bottom: 6px;">
+                        {% for tag in task.tags.all %}
+                        <span class="badge-tag" style="background-color: {{ tag.color }}15; color: {{ tag.color }}; border: 1px solid {{ tag.color }}30; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15);">
+                            <span style="display: inline-block; width: 5px; height: 5px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                            {{ tag.name }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="task-footer" style="padding-left: 30px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <span class="task-due">
+                            {% if task.due_date %}
+                            <i class="fa-regular fa-calendar-days"></i>
+                            {{ task.due_date|date:"M d" }}
+                            {% else %}
+                            <i class="fa-regular fa-calendar" style="opacity: 0.3;"></i>
+                            <span style="opacity: 0.35;">No date</span>
+                            {% endif %}
+                        </span>
+                        
+                        <div style="display: flex; gap: 6px;">
+                            <span class="badge {% if task.status == 'DONE' %}badge-success{% elif task.status == 'PROGRESS' %}badge-warning{% else %}badge-info{% endif %}" style="font-size: 0.65rem; padding: 2px 8px;">
+                                {% if task.status == 'DONE' %}Done{% elif task.status == 'PROGRESS' %}In Progress{% else %}To Do{% endif %}
+                            </span>
+                            <span class="badge {% if task.priority == 'HIGH' %}badge-danger{% elif task.priority == 'MEDIUM' %}badge-warning{% else %}badge-info{% endif %}" style="font-size: 0.65rem; padding: 2px 8px;">
+                                {{ task.priority }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Hidden notes cache -->
+                    <div class="task-notes-cache" style="display: none;">
+                        {% for note in task.notes.all %}
+                        <div class="cache-note" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Quick Add Task Button -->
+            <button class="btn btn-secondary btn-sm" onclick="openAddTaskModal({{ list.id }}, '{{ list.name }}')" style="width: 100%; border-style: dashed; background-color: transparent;">
+                <i class="fa-solid fa-plus"></i> Add Item
+            </button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Column addition placeholder -->
+    <div style="width: 320px; flex-shrink: 0; background-color: rgba(15, 21, 36, 0.25); border: 1px dashed var(--border-color); border-radius: var(--radius-md); padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; height: 180px; text-align: center; cursor: pointer; transition: var(--transition-fast);" onmouseover="this.style.borderColor='var(--border-color-hover)'; this.style.backgroundColor='rgba(15, 21, 36, 0.45)';" onmouseout="this.style.borderColor='var(--border-color)'; this.style.backgroundColor='rgba(15, 21, 36, 0.25)';" onclick="openNewListModal()">
+        <i class="fa-solid fa-folder-plus" style="font-size: 1.5rem; color: var(--text-muted);"></i>
+        <div>
+            <h4 style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary);">New List Column</h4>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">Divide tasks into custom sections</span>
+        </div>
+    </div>
+</div>
+
+<!-- Master Task List View -->
+<div id="listViewContainer" style="display: none; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-sm); margin-bottom: 40px;">
+    <!-- Quick Add Checklist Form -->
+    <form action="{% url 'projects:task_quick_add' project.id %}" method="POST" style="margin-bottom: 24px; display: flex; gap: 12px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+        {% csrf_token %}
+        <input type="text" class="form-control" name="title" required placeholder="Type a task name and press Enter to add to checklist..." autocomplete="off" style="flex-grow: 1; padding: 10px 16px; font-weight: 500; margin-bottom: 0;">
+        <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">
+            <i class="fa-solid fa-plus"></i> Add Item
+        </button>
+    </form>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+        <h3 class="card-title" style="font-size: 1.15rem;"><i class="fa-solid fa-list-ul" style="color: var(--primary); margin-right: 8px;"></i> Master Tasks Sheet</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Click table headers below to sort tasks dynamically</span>
+    </div>
+    
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-secondary); font-weight: 600;">
+                    <th style="padding: 12px 16px; width: 48px;"></th>
+                    <th style="padding: 12px 16px; cursor: pointer;" onclick="sortTable(1)">Task Summary <i class="fa-solid fa-sort" style="margin-left: 6px; font-size: 0.75rem; opacity: 0.5;"></i></th>
+                    <th style="padding: 12px 16px; cursor: pointer;" onclick="sortTable(2)">List Column <i class="fa-solid fa-sort" style="margin-left: 6px; font-size: 0.75rem; opacity: 0.5;"></i></th>
+                    <th style="padding: 12px 16px; cursor: pointer;" onclick="sortTable(3, 'status')">Status <i class="fa-solid fa-sort" style="margin-left: 6px; font-size: 0.75rem; opacity: 0.5;"></i></th>
+                    <th style="padding: 12px 16px; cursor: pointer;" onclick="sortTable(4, 'priority')">Priority <i class="fa-solid fa-sort" style="margin-left: 6px; font-size: 0.75rem; opacity: 0.5;"></i></th>
+                    <th style="padding: 12px 16px; cursor: pointer;" onclick="sortTable(5, 'date')">Due Date <i class="fa-solid fa-sort" style="margin-left: 6px; font-size: 0.75rem; opacity: 0.5;"></i></th>
+                    <th style="padding: 12px 16px; width: 150px;">Tags</th>
+                </tr>
+            </thead>
+            <tbody id="masterTaskTableBody">
+                {% for list in task_lists %}
+                    {% for task in list.tasks.all %}
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: var(--transition-fast);" 
+                        onmouseover="this.style.backgroundColor='rgba(255,255,255,0.02)';" 
+                        onmouseout="this.style.backgroundColor='transparent';"
+                        data-task-card-id="task-card-{{ task.id }}"
+                        onclick="triggerCardClick(this)">
+                        <td style="padding: 14px 16px; width: 48px; text-align: center;" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="task-toggle-checkbox" 
+                                   data-task-id="{{ task.id }}" 
+                                   {% if task.status == 'DONE' %}checked{% endif %}
+                                   onchange="toggleTaskStatus(this)">
+                        </td>
+                        <td style="padding: 14px 16px; font-weight: 600; color: var(--text-primary);">
+                            <span class="task-label {% if task.status == 'DONE' %}completed-item{% endif %}" id="task-text-{{ task.id }}">{{ task.title }}</span>
+                        </td>
+                        <td style="padding: 14px 16px; color: var(--text-secondary);">{{ list.name }}</td>
+                        <td style="padding: 14px 16px;" data-val="{{ task.status }}">
+                            <span class="badge {% if task.status == 'DONE' %}badge-success{% elif task.status == 'PROGRESS' %}badge-warning{% else %}badge-info{% endif %}">
+                                {% if task.status == 'DONE' %}Done{% elif task.status == 'PROGRESS' %}In Progress{% else %}To Do{% endif %}
+                            </span>
+                        </td>
+                        <td style="padding: 14px 16px;" data-val="{% if task.priority == 'HIGH' %}3{% elif task.priority == 'MEDIUM' %}2{% else %}1{% endif %}">
+                            <span class="badge {% if task.priority == 'HIGH' %}badge-danger{% elif task.priority == 'MEDIUM' %}badge-warning{% else %}badge-info{% endif %}">
+                                {{ task.priority }}
+                            </span>
+                        </td>
+                        <td style="padding: 14px 16px;" data-val="{% if task.due_date %}{{ task.due_date|date:'Y-m-d' }}{% else %}9999-12-31{% endif %}">
+                            <span class="task-due">
+                                {% if task.due_date %}
+                                <i class="fa-regular fa-calendar-days" style="margin-right: 4px;"></i> {{ task.due_date|date:"M d, Y" }}
+                                {% else %}
+                                <span style="opacity: 0.35;">No date</span>
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td style="padding: 14px 16px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                {% for tag in task.tags.all %}
+                                <span class="badge-tag" style="background-color: {{ tag.color }}15; color: {{ tag.color }}; border: 1px solid {{ tag.color }}30; font-size: 0.62rem; padding: 1px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                                    <span style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                                    {{ tag.name }}
+                                </span>
+                                {% empty %}
+                                <span style="color: var(--text-muted); font-size: 0.75rem; opacity: 0.5;">--</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal 1: Create Task List Column -->
+<div class="modal-overlay" id="newListModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-list-ul" style="color: var(--primary); margin-right: 8px;"></i> Create List Column</h3>
+            <span class="modal-close" onclick="closeNewListModal()">&times;</span>
+        </div>
+        
+        <form action="{% url 'projects:task_list_create' project.id %}" method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="listName" class="form-label">List Title *</label>
+                <input type="text" class="form-control" id="listName" name="name" required placeholder="e.g. Immediate Launch Items" autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label for="listDesc" class="form-label">Category Summary (Optional)</label>
+                <input type="text" class="form-control" id="listDesc" name="description" placeholder="Brief outline of these tasks...">
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeNewListModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create List</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 2: Create Task Item in List -->
+<div class="modal-overlay" id="newTaskModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-square-plus" style="color: var(--primary); margin-right: 8px;"></i> Add Task to: <span id="targetListNameSpan" style="color: var(--text-primary);">List</span></h3>
+            <span class="modal-close" onclick="closeAddTaskModal()">&times;</span>
+        </div>
+        
+        <form id="newTaskForm" action="" method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="taskTitle" class="form-label">Task Summary *</label>
+                <input type="text" class="form-control" id="taskTitle" name="title" required placeholder="What needs to be done?" autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label for="taskDesc" class="form-label">Notes / Instructions</label>
+                <textarea class="form-control" id="taskDesc" name="description" rows="2" placeholder="Write any specific criteria or checklists here..."></textarea>
+            </div>
+            
+            <!-- Visual Tag Multiselect -->
+            <div class="form-group">
+                <label class="form-label" style="font-size: 0.85rem;">Associate Tags</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+                    {% for tag in tags %}
+                    <label class="tag-selector-pill" style="cursor: pointer; position: relative;">
+                        <input type="checkbox" name="tags" value="{{ tag.id }}" style="display: none;" onchange="updateTagPillStyle(this)">
+                        <span style="display: inline-flex; align-items: center; gap: 5px; border: 1px solid {{ tag.color }}40; background-color: transparent; color: var(--text-secondary); font-size: 0.75rem; padding: 6px 12px; border-radius: 6px; font-weight: 600; transition: all var(--transition-fast);">
+                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                            {{ tag.name }}
+                        </span>
+                    </label>
+                    {% empty %}
+                    <span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No tags created yet. Manage tags to add some!</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="form-group">
+                    <label for="taskPriority" class="form-label">Priority</label>
+                    <select class="form-control" id="taskPriority" name="priority">
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM" selected>Medium</option>
+                        <option value="HIGH">High</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="taskDueDate" class="form-label">Due Date</label>
+                    <input type="date" class="form-control" id="taskDueDate" name="due_date">
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeAddTaskModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Task</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 3: View & Edit Task Details -->
+<div class="modal-overlay" id="taskDetailsModal">
+    <div class="modal-content" style="max-width: 650px; width: 95%;">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-regular fa-clipboard" style="color: var(--primary); margin-right: 8px;"></i> Task Workspace</h3>
+            <span class="modal-close" onclick="closeTaskDetailsModal()">&times;</span>
+        </div>
+        
+        <!-- Editable Task Form -->
+        <form id="editTaskForm" method="POST" action="">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="editTaskTitle" class="form-label" style="font-size: 0.8rem;">Task Summary *</label>
+                <input type="text" class="form-control" name="title" id="editTaskTitle" required placeholder="What needs to be done?" autocomplete="off" style="font-weight: 600;">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px;">
+                <div class="form-group">
+                    <label for="editTaskList" class="form-label" style="font-size: 0.8rem;">List Column</label>
+                    <select class="form-control" name="list" id="editTaskList">
+                        {% for lst in task_lists %}
+                        <option value="{{ lst.id }}">{{ lst.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="editTaskDueDate" class="form-label" style="font-size: 0.8rem;">Due Date</label>
+                    <input type="date" class="form-control" name="due_date" id="editTaskDueDate">
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px;">
+                <div class="form-group">
+                    <label for="editTaskPriority" class="form-label" style="font-size: 0.8rem;">Priority</label>
+                    <select class="form-control" name="priority" id="editTaskPriority">
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="HIGH">High</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="editTaskStatus" class="form-label" style="font-size: 0.8rem;">Status</label>
+                    <select class="form-control" name="status" id="editTaskStatus">
+                        <option value="TODO">To Do</option>
+                        <option value="PROGRESS">In Progress</option>
+                        <option value="DONE">Done</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-top: 14px;">
+                <label for="editTaskDesc" class="form-label" style="font-size: 0.8rem;">Notes & Core Description</label>
+                <textarea class="form-control" name="description" id="editTaskDesc" rows="3" placeholder="Core instructions or check criteria..."></textarea>
+            </div>
+            
+            <!-- Visual Tag Multiselect (Edit) -->
+            <div class="form-group" style="margin-top: 14px;">
+                <label class="form-label" style="font-size: 0.8rem;">Associate Tags</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+                    {% for tag in tags %}
+                    <label class="tag-selector-pill edit-tag-pill" style="cursor: pointer; position: relative;">
+                        <input type="checkbox" name="tags" value="{{ tag.id }}" id="edit-tag-{{ tag.id }}" style="display: none;" onchange="updateTagPillStyle(this)">
+                        <span style="display: inline-flex; align-items: center; gap: 5px; border: 1px solid {{ tag.color }}40; background-color: transparent; color: var(--text-secondary); font-size: 0.75rem; padding: 6px 12px; border-radius: 6px; font-weight: 600; transition: all var(--transition-fast);">
+                            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                            {{ tag.name }}
+                        </span>
+                    </label>
+                    {% empty %}
+                    <span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No tags created yet.</span>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 14px;">
+                <button type="button" class="btn btn-secondary" onclick="closeTaskDetailsModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+        
+        <!-- Divider -->
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
+        
+        <!-- Follow Up Timeline -->
+        <div>
+            <h4 class="card-title" style="font-size: 1rem; margin-bottom: 12px;"><i class="fa-regular fa-comments" style="color: var(--info); margin-right: 6px;"></i> Follow-up Notes Timeline</h4>
+            
+            <!-- Notes list -->
+            <div id="detailTaskNotesList" style="display: flex; flex-direction: column; gap: 10px; max-height: 200px; overflow-y: auto; padding: 2px;">
+                <span style="color: var(--text-muted); font-style: italic; font-size: 0.85rem;">No notes recorded yet.</span>
+            </div>
+            
+            <!-- Add follow up note form -->
+            <form id="addTaskNoteForm" method="POST" action="" style="margin-top: 16px;">
+                {% csrf_token %}
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <textarea class="form-control" name="content" required placeholder="Type follow-up update, timeline note, or progress details here..." rows="2" style="font-size: 0.85rem; padding: 8px 12px;"></textarea>
+                </div>
+                <div style="display: flex; justify-content: flex-end;">
+                    <button type="submit" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; padding: 6px 14px;">
+                        <i class="fa-solid fa-circle-plus"></i> Add Follow-up Note
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 4: Edit Task List Column -->
+<div class="modal-overlay" id="editListModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-regular fa-pen-to-square" style="color: var(--primary); margin-right: 8px;"></i> Edit Column List</h3>
+            <span class="modal-close" onclick="closeEditListModal()">&times;</span>
+        </div>
+        
+        <form id="editListForm" action="" method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="editListNameInput" class="form-label">List Column Title *</label>
+                <input type="text" class="form-control" id="editListNameInput" name="name" required placeholder="e.g. Phase 4: Scaling" autocomplete="off">
+            </div>
+            
+            <div class="form-group">
+                <label for="editListDescInput" class="form-label">Category Summary (Optional)</label>
+                <input type="text" class="form-control" id="editListDescInput" name="description" placeholder="Brief outline of these tasks...">
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditListModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 5: Manage Workspace Tags -->
+<div class="modal-overlay" id="manageTagsModal">
+    <div class="modal-content" style="max-width: 480px; width: 95%;">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-tags" style="color: var(--primary); margin-right: 8px;"></i> Manage Tags</h3>
+            <span class="modal-close" onclick="closeCreateTagModal()">&times;</span>
+        </div>
+        
+        <!-- Active Tags Display -->
+        <div style="margin-bottom: 24px;">
+            <label class="form-label" style="font-size: 0.8rem; margin-bottom: 8px; display: block;">Active Workspace Tags</label>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; background-color: rgba(15, 21, 36, 0.3); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm); min-height: 50px; align-items: center;">
+                {% for tag in tags %}
+                <span class="badge-tag" style="background-color: {{ tag.color }}15; color: {{ tag.color }}; border: 1px solid {{ tag.color }}30; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;">
+                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                    {{ tag.name }}
+                </span>
+                {% empty %}
+                <span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No tags created yet.</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Tag Creator Form -->
+        <form action="{% url 'projects:tag_create' project.id %}" method="POST" style="border-top: 1px solid var(--border-color); padding-top: 20px;">
+            {% csrf_token %}
+            <h4 class="card-title" style="font-size: 0.95rem; margin-bottom: 14px; color: var(--text-primary);"><i class="fa-solid fa-plus-circle" style="color: var(--success); margin-right: 6px;"></i> Create New Tag</h4>
+            
+            <div class="form-group">
+                <label for="newTagName" class="form-label" style="font-size: 0.8rem;">Tag Name *</label>
+                <input type="text" class="form-control" id="newTagName" name="name" required placeholder="e.g. Design, Copy, Finance" autocomplete="off" style="font-size: 0.85rem;">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label" style="font-size: 0.8rem;">Tag Label Color</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <input type="color" id="newTagColorPicker" value="#6366f1" style="border: none; background: transparent; cursor: pointer; width: 38px; height: 38px; border-radius: 8px; overflow: hidden; padding: 0;" oninput="updateHexColorField(this.value)">
+                    <input type="text" class="form-control" id="newTagColor" name="color" value="#6366f1" required placeholder="#6366f1" style="flex-grow: 1; margin-bottom: 0; font-size: 0.85rem; padding: 8px 12px;" oninput="updateColorPicker(this.value)">
+                </div>
+                <!-- Presets -->
+                <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
+                    <span class="color-dot" onclick="setPresetColor('#ec4899')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #ec4899; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Pink"></span>
+                    <span class="color-dot" onclick="setPresetColor('#0ea5e9')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #0ea5e9; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Light Blue"></span>
+                    <span class="color-dot" onclick="setPresetColor('#f59e0b')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #f59e0b; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Amber"></span>
+                    <span class="color-dot" onclick="setPresetColor('#10b981')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #10b981; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Emerald"></span>
+                    <span class="color-dot" onclick="setPresetColor('#ef4444')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #ef4444; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Red"></span>
+                    <span class="color-dot" onclick="setPresetColor('#8b5cf6')" style="cursor: pointer; width: 20px; height: 20px; border-radius: 50%; background-color: #8b5cf6; transition: var(--transition-fast);" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'" title="Violet"></span>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+                <button type="button" class="btn btn-secondary" onclick="closeCreateTagModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Tag</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // AJAX to toggle task status dynamically
+    function toggleTaskStatus(checkbox) {
+        const taskId = checkbox.dataset.taskId;
+        const isChecked = checkbox.checked;
+        
+        // Optimistic UI updates - select all related elements across views
+        const boardTitle = document.getElementById(`task-title-${taskId}`);
+        const tableTitle = document.getElementById(`task-text-${taskId}`);
+        const taskDesc = document.getElementById(`task-desc-${taskId}`);
+        
+        // Set all matching checkboxes to the same state
+        const allMatchingCheckboxes = document.querySelectorAll(`input[data-task-id="${taskId}"]`);
+        allMatchingCheckboxes.forEach(cb => cb.checked = isChecked);
+        
+        const titles = [boardTitle, tableTitle];
+        titles.forEach(t => {
+            if (t) {
+                if (isChecked) t.classList.add('completed-item');
+                else t.classList.remove('completed-item');
+            }
+        });
+        
+        if (taskDesc) {
+            if (isChecked) {
+                taskDesc.style.opacity = '0.4';
+                taskDesc.style.textDecoration = 'line-through';
+            } else {
+                taskDesc.style.opacity = '1';
+                taskDesc.style.textDecoration = 'none';
+            }
+        }
+        
+        // Send state to server
+        fetch(`/projects/tasks/${taskId}/toggle/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                'status': isChecked ? 'DONE' : 'TODO'
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                // Rollback UI on error
+                allMatchingCheckboxes.forEach(cb => cb.checked = !isChecked);
+                titles.forEach(t => {
+                    if (t) t.classList.toggle('completed-item');
+                });
+                if (taskDesc) {
+                    taskDesc.style.opacity = isChecked ? '1' : '0.4';
+                    taskDesc.style.textDecoration = isChecked ? 'none' : 'line-through';
+                }
+                alert('Error updating task status.');
+            } else {
+                console.log(`Task ${taskId} status updated.`);
+            }
+        })
+        .catch(err => {
+            allMatchingCheckboxes.forEach(cb => cb.checked = !isChecked);
+            titles.forEach(t => {
+                if (t) t.classList.toggle('completed-item');
+            });
+            if (taskDesc) {
+                taskDesc.style.opacity = isChecked ? '1' : '0.4';
+                taskDesc.style.textDecoration = isChecked ? 'none' : 'line-through';
+            }
+            console.error('AJAX Error:', err);
+        });
+    }
+
+    // Modal toggling scripts
+    function openNewListModal() {
+        const modal = document.getElementById('newListModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeNewListModal() {
+        const modal = document.getElementById('newListModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function openAddTaskModal(listId, listName) {
+        document.getElementById('targetListNameSpan').innerText = listName;
+        document.getElementById('newTaskForm').action = `/projects/lists/${listId}/tasks/create/`;
+        
+        // Reset checkmarks in Create Modal
+        const newTagPills = document.querySelectorAll('#newTaskForm .tag-selector-pill input[type="checkbox"]');
+        newTagPills.forEach(cb => {
+            cb.checked = false;
+            updateTagPillStyle(cb);
+        });
+        
+        const modal = document.getElementById('newTaskModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeAddTaskModal() {
+        const modal = document.getElementById('newTaskModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    
+    function viewTaskDetails(card) {
+        const id = card.dataset.id;
+        const listId = card.dataset.listId;
+        const title = card.dataset.title;
+        const desc = card.dataset.desc;
+        const priority = card.dataset.priority;
+        const rawDue = card.dataset.rawDue;
+        const status = card.dataset.status;
+        
+        // Map form action URLs dynamically
+        document.getElementById('editTaskForm').action = `/projects/tasks/${id}/update/`;
+        document.getElementById('addTaskNoteForm').action = `/projects/tasks/${id}/notes/create/`;
+        
+        // Populate inputs
+        document.getElementById('editTaskTitle').value = title;
+        document.getElementById('editTaskDesc').value = desc;
+        document.getElementById('editTaskList').value = listId;
+        document.getElementById('editTaskDueDate').value = rawDue;
+        document.getElementById('editTaskPriority').value = priority;
+        document.getElementById('editTaskStatus').value = status;
+        
+        // Populate and activate tags checkboxes in edit form
+        const editTagPills = document.querySelectorAll('.edit-tag-pill input[type="checkbox"]');
+        editTagPills.forEach(cb => {
+            cb.checked = false;
+            updateTagPillStyle(cb);
+        });
+        
+        const rawTags = card.dataset.tags;
+        if (rawTags) {
+            try {
+                const tagIds = JSON.parse(rawTags);
+                tagIds.forEach(id => {
+                    const cb = document.getElementById(`edit-tag-${id}`);
+                    if (cb) {
+                        cb.checked = true;
+                        updateTagPillStyle(cb);
+                    }
+                });
+            } catch (err) {
+                console.error("Error parsing task tags:", err);
+            }
+        }
+        
+        // Populate notes timeline
+        const notesCache = card.querySelectorAll('.task-notes-cache .cache-note');
+        const notesContainer = document.getElementById('detailTaskNotesList');
+        notesContainer.innerHTML = '';
+        if (notesCache.length === 0) {
+            notesContainer.innerHTML = '<span style="color: var(--text-muted); font-style: italic; font-size: 0.85rem;">No follow-up notes recorded yet.</span>';
+        } else {
+            notesCache.forEach(note => {
+                const content = note.innerText;
+                const date = note.dataset.date;
+                notesContainer.innerHTML += `
+                    <div style="background-color: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 14px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">
+                            <span style="font-weight: 600; color: var(--primary);"><i class="fa-regular fa-comment-dots"></i> Progress Note</span>
+                            <span>${date}</span>
+                        </div>
+                        <div style="font-size: 0.82rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.5;">${content}</div>
+                    </div>
+                `;
+            });
+        }
+        
+        // Open Modal
+        const modal = document.getElementById('taskDetailsModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeTaskDetailsModal() {
+        const modal = document.getElementById('taskDetailsModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    
+    // Switch between Kanban Board and Master List View
+    function switchView(view) {
+        const boardBtn = document.getElementById('btnBoardView');
+        const listBtn = document.getElementById('btnListView');
+        const boardContainer = document.getElementById('boardViewContainer');
+        const listContainer = document.getElementById('listViewContainer');
+        
+        if (view === 'board') {
+            boardContainer.style.display = 'flex';
+            listContainer.style.display = 'none';
+            boardBtn.className = 'btn btn-primary';
+            listBtn.className = 'btn btn-secondary';
+        } else {
+            boardContainer.style.display = 'none';
+            listContainer.style.display = 'block';
+            boardBtn.className = 'btn btn-secondary';
+            listBtn.className = 'btn btn-primary';
+        }
+    }
+    
+    // Row click in table to trigger modal
+    function triggerCardClick(row) {
+        const cardId = row.dataset.taskCardId;
+        const card = document.getElementById(cardId);
+        if (card) {
+            viewTaskDetails(card);
+        }
+    }
+    
+    // Master Table sorting logic
+    let currentSortCol = -1;
+    let currentSortAsc = true;
+    
+    function sortTable(colIndex, type) {
+        const tbody = document.getElementById('masterTaskTableBody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        
+        // Toggling sort direction
+        if (currentSortCol === colIndex) {
+            currentSortAsc = !currentSortAsc;
+        } else {
+            currentSortCol = colIndex;
+            currentSortAsc = true;
+        }
+        
+        rows.sort((a, b) => {
+            let valA = a.cells[colIndex].innerText.trim();
+            let valB = b.cells[colIndex].innerText.trim();
+            
+            // If custom dataset is provided
+            if (a.cells[colIndex].dataset.val !== undefined) {
+                valA = a.cells[colIndex].dataset.val;
+                valB = b.cells[colIndex].dataset.val;
+            }
+            
+            if (type === 'date') {
+                return currentSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else if (type === 'priority') {
+                return currentSortAsc ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
+            } else if (type === 'status') {
+                return currentSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            } else {
+                return currentSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+            }
+        });
+        
+        // Clear and re-append rows
+        tbody.innerHTML = '';
+        rows.forEach(row => tbody.appendChild(row));
+        
+        // Visual indicator update
+        const headers = document.querySelectorAll('thead th');
+        headers.forEach((th, idx) => {
+            const icon = th.querySelector('i');
+            if (idx === colIndex) {
+                icon.className = currentSortAsc ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+                icon.style.opacity = '1';
+                icon.style.color = 'var(--primary)';
+            } else {
+                icon.className = 'fa-solid fa-sort';
+                icon.style.opacity = '0.5';
+                icon.style.color = 'inherit';
+            }
+        });
+    }
+    
+    // Hash routing to remember active view switcher state
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.location.hash === '#list') {
+            switchView('list');
+        } else {
+            switchView('board');
+        }
+    });
+
+    // Toggle column options dropdown menu
+    function toggleColumnMenu(listId, event) {
+        event.stopPropagation();
+        
+        // Close all other dropdown menus
+        const dropdowns = document.querySelectorAll('.column-options-dropdown');
+        dropdowns.forEach(drop => {
+            if (drop.id !== `columnMenu-${listId}`) {
+                drop.style.display = 'none';
+            }
+        });
+        
+        const menu = document.getElementById(`columnMenu-${listId}`);
+        if (menu.style.display === 'none' || menu.style.display === '') {
+            menu.style.display = 'block';
+        } else {
+            menu.style.display = 'none';
+        }
+    }
+    
+    // Auto-close open menus on general document click
+    document.addEventListener('click', () => {
+        const dropdowns = document.querySelectorAll('.column-options-dropdown');
+        dropdowns.forEach(drop => drop.style.display = 'none');
+    });
+
+    // Modal triggers for Edit Column List
+    function openEditListModal(listId, listName, listDesc, event) {
+        if (event) event.stopPropagation();
+        
+        // Map form action URL dynamically
+        document.getElementById('editListForm').action = `/projects/lists/${listId}/update/`;
+        
+        // Populate inputs
+        document.getElementById('editListNameInput').value = listName;
+        document.getElementById('editListDescInput').value = listDesc;
+        
+        // Toggle modal open
+        const modal = document.getElementById('editListModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeEditListModal() {
+        const modal = document.getElementById('editListModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    // Close modal if user clicks backdrop overlay
+    window.addEventListener('click', (e) => {
+        const listModal = document.getElementById('newListModal');
+        const taskModal = document.getElementById('newTaskModal');
+        const detailsModal = document.getElementById('taskDetailsModal');
+        const editListModal = document.getElementById('editListModal');
+        const manageTagsModal = document.getElementById('manageTagsModal');
+        if (e.target === listModal) {
+            closeNewListModal();
+        }
+        if (e.target === taskModal) {
+            closeAddTaskModal();
+        }
+        if (e.target === detailsModal) {
+            closeTaskDetailsModal();
+        }
+        if (e.target === editListModal) {
+            closeEditListModal();
+        }
+        if (e.target === manageTagsModal) {
+            closeCreateTagModal();
+        }
+    });
+
+    // Visual Tag Selector styling logic
+    function updateTagPillStyle(checkbox) {
+        const pill = checkbox.closest('.tag-selector-pill').querySelector('span');
+        const color = pill.querySelector('span').style.backgroundColor;
+        if (checkbox.checked) {
+            pill.style.backgroundColor = color + '25'; // 25% opacity background
+            pill.style.borderColor = color;
+            pill.style.color = 'var(--text-primary)';
+            pill.style.boxShadow = `0 0 8px ${color}20`;
+        } else {
+            pill.style.backgroundColor = 'transparent';
+            pill.style.borderColor = color + '40';
+            pill.style.color = 'var(--text-secondary)';
+            pill.style.boxShadow = 'none';
+        }
+    }
+
+    // Modal triggers for Manage Workspace Tags
+    function openCreateTagModal() {
+        const modal = document.getElementById('manageTagsModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+    
+    function closeCreateTagModal() {
+        const modal = document.getElementById('manageTagsModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+    
+    function setPresetColor(hex) {
+        document.getElementById('newTagColor').value = hex;
+        document.getElementById('newTagColorPicker').value = hex;
+    }
+    
+    function updateHexColorField(val) {
+        document.getElementById('newTagColor').value = val;
+    }
+    
+    // Auto-update color picker on hex manual input
+    function updateColorPicker(val) {
+        if (val.match(/^#[0-9A-Fa-f]{6}$/)) {
+            document.getElementById('newTagColorPicker').value = val;
+        }
+    }
+
+    // Client-side dynamic tag filtering logic
+    let activeFilterTags = new Set();
+    
+    function toggleTagFilter(tagId) {
+        const btn = document.querySelector(`.btn-filter-tag[data-tag-id="${tagId}"]`);
+        const color = btn.querySelector('span').style.backgroundColor;
+        
+        if (activeFilterTags.has(tagId)) {
+            activeFilterTags.delete(tagId);
+            btn.style.backgroundColor = 'transparent';
+            btn.style.borderColor = color + '40';
+            btn.style.color = 'var(--text-secondary)';
+            btn.style.boxShadow = 'none';
+        } else {
+            activeFilterTags.add(tagId);
+            btn.style.backgroundColor = color + '20'; // 20% opacity
+            btn.style.borderColor = color;
+            btn.style.color = 'var(--text-primary)';
+            btn.style.boxShadow = `0 0 10px ${color}25`;
+        }
+        
+        applyTagFilters();
+    }
+    
+    function applyTagFilters() {
+        const hasFilters = activeFilterTags.size > 0;
+        document.getElementById('btnClearFilter').style.display = hasFilters ? 'inline-block' : 'none';
+        
+        // 1. Filter Kanban Cards
+        const cards = document.querySelectorAll('.task-card');
+        cards.forEach(card => {
+            if (!hasFilters) {
+                card.style.display = 'flex';
+                return;
+            }
+            
+            let cardTags = [];
+            try {
+                cardTags = JSON.parse(card.dataset.tags || '[]');
+            } catch(e) {}
+            
+            const match = cardTags.some(t => activeFilterTags.has(t));
+            card.style.display = match ? 'flex' : 'none';
+        });
+        
+        // 2. Filter Master Sheet Rows
+        const rows = document.querySelectorAll('#masterTaskTableBody tr');
+        rows.forEach(row => {
+            if (!hasFilters) {
+                row.style.display = '';
+                return;
+            }
+            
+            const cardId = row.dataset.taskCardId;
+            const card = document.getElementById(cardId);
+            let cardTags = [];
+            if (card) {
+                try {
+                    cardTags = JSON.parse(card.dataset.tags || '[]');
+                } catch(e) {}
+            }
+            
+            const match = cardTags.some(t => activeFilterTags.has(t));
+            row.style.display = match ? '' : 'none';
+        });
+    }
+    
+    function clearTagFilters() {
+        activeFilterTags.clear();
+        const buttons = document.querySelectorAll('.btn-filter-tag');
+        buttons.forEach(btn => {
+            const color = btn.querySelector('span').style.backgroundColor;
+            btn.style.backgroundColor = 'transparent';
+            btn.style.borderColor = color + '40';
+            btn.style.color = 'var(--text-secondary)';
+            btn.style.boxShadow = 'none';
+        });
+        applyTagFilters();
+    }
+</script>
+{% endblock %}

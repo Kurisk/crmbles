@@ -1,0 +1,79 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Notes & Wiki | CRMbles{% endblock %}
+
+{% block header_title %}Documents & Ideas{% endblock %}
+{% block header_subtitle %}Organize business wikis, long-form ideas, and project research notes.{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'documents:document_create' %}" class="btn btn-primary">
+    <i class="fa-solid fa-file-signature"></i> Create Document
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 32px; padding: 20px 24px; background-color: rgba(15, 21, 36, 0.4);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        <span style="font-size: 0.95rem; font-weight: 600; color: var(--text-secondary);">
+            <i class="fa-regular fa-folder-open" style="color: var(--primary); margin-right: 8px;"></i>
+            Filter & Search
+        </span>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Total Docs: {{ documents.count }}</span>
+        </div>
+    </div>
+</div>
+
+<div class="document-list">
+    {% if documents %}
+        {% for doc in documents %}
+        <div class="document-item card-hover" style="background-color: var(--bg-card); padding: 20px 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 20px; flex-grow: 1;">
+                <div class="doc-icon" style="width: 42px; height: 42px; background-color: var(--info-bg); color: var(--info); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
+                    <i class="fa-regular fa-file-lines"></i>
+                </div>
+                
+                <div>
+                    <a href="{% url 'documents:document_detail' doc.id %}" style="font-weight: 600; font-size: 1.05rem; display: inline-flex; align-items: center; gap: 10px;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='inherit'">
+                        {{ doc.title }}
+                    </a>
+                    
+                    <div style="display: flex; align-items: center; gap: 12px; font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                        <span>Modified: {{ doc.updated_at|date:"M d, Y, h:i A" }}</span>
+                        {% if doc.project %}
+                        <span style="color: var(--text-muted)">&bull;</span>
+                        <span class="badge badge-success" style="font-size: 0.65rem; padding: 1px 6px;">{{ doc.project.name }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <a href="{% url 'documents:document_update' doc.id %}" class="btn btn-secondary btn-sm" style="padding: 6px 12px; border-radius: 6px; font-size: 0.75rem;">
+                    <i class="fa-regular fa-pen-to-square"></i> Edit
+                </a>
+                
+                <!-- Quick Inline Delete note -->
+                <form action="{% url 'documents:document_delete' doc.id %}" method="POST" onsubmit="return confirm('Permanently delete this document?');" style="display: inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary btn-sm" style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; border-color: rgba(244, 63, 94, 0.2); color: var(--danger); background-color: transparent;" onmouseover="this.style.backgroundColor='var(--danger-bg)'" onmouseout="this.style.backgroundColor='transparent'">
+                        <i class="fa-regular fa-trash-can"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="card" style="text-align: center; padding: 80px 40px; color: var(--text-muted);">
+            <i class="fa-solid fa-file-circle-plus" style="font-size: 3.5rem; margin-bottom: 20px; color: var(--text-muted); display: block;"></i>
+            <h3 style="font-family: var(--font-heading); color: var(--text-primary); margin-bottom: 10px; font-size: 1.4rem;">No documents drafted yet</h3>
+            <p style="font-size: 0.95rem; max-width: 420px; margin: 0 auto 24px;">
+                Start documenting technical blueprints, meeting notes, project scope criteria, or business ideas.
+            </p>
+            <a href="{% url 'documents:document_create' %}" class="btn btn-primary">
+                <i class="fa-solid fa-plus"></i> Compose Note
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
