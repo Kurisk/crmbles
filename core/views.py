@@ -8,6 +8,9 @@ def dashboard(request):
     Renders the primary CRM workspace hub showing database metrics,
     upcoming active tasks, and recent document sheets.
     """
+    if not request.user.is_authenticated:
+        return render(request, 'core/welcome.html')
+
     business = request.business
     projects = Project.objects.filter(business=business)
     tasks = Task.objects.filter(list__project__business=business)

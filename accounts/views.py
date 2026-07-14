@@ -70,10 +70,63 @@ def _apply_memberships(user, request):
         membership.save()
 
 
+def _create_workspace_owner(username, email, password, business_name):
+    User = get_user_model()
+    user = User.objects.create_user(username=username, email=email, password=password, is_active=True)
+    user.profile.role = UserProfile.ROLE_USER
+    user.profile.save()
+
+    business = Business.objects.create(
+        name=business_name,
+        display_name=business_name,
+        invoice_prefix=business_name[:3].upper(),
+    )
+    membership, _ = BusinessMembership.objects.get_or_create(user=user, business=business)
+    membership.grant_full_access()
+    membership.save()
+    return user, business
+
+
+@require_http_methods(["GET", "POST"])
+def signup_view(request):
+    if request.user.is_authenticated:
+        return redirect("core:dashboard")
+
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        email = request.POST.get("email", "").strip()
+        business_name = request.POST.get("business_name", "").strip()
+        password1 = request.POST.get("password1", "")
+        password2 = request.POST.get("password2", "")
+
+        if not username:
+            messages.error(request, "Username is required.")
+        elif get_user_model().objects.filter(username__iexact=username).exists():
+            messages.error(request, f"Username '{username}' is already taken.")
+        elif password1 != password2:
+            messages.error(request, "Passwords do not match.")
+        else:
+            if not business_name:
+                business_name = f"{username}'s Workspace"
+            try:
+                validate_password(password1)
+            except ValidationError as exc:
+                for error in exc.messages:
+                    messages.error(request, error)
+            else:
+                user, business = _create_workspace_owner(username, email, password1, business_name)
+                login(request, user)
+                request.session["active_business_id"] = business.pk
+                messages.success(request, "Workspace created.")
+                return redirect("core:dashboard")
+
+    return render(request, "accounts/signup.html")
+
+
 @require_http_methods(["GET", "POST"])
 def login_view(request):
     if not get_user_model().objects.exists():
-        return redirect("accounts:setup")
+        return redirect("accounts:signup")
     if request.user.is_authenticated:
         return redirect("core:dashboard")
 
@@ -94,11 +147,12 @@ def logout_view(request):
 def setup_manager(request):
     User = get_user_model()
     if User.objects.exists():
-        return redirect("accounts:login")
+        return redirect("accounts:signup")
 
     if request.method == "POST":
         username = request.POST.get("username", "").strip()
         email = request.POST.get("email", "").strip()
+        business_name = request.POST.get("business_name", "").strip()
         password1 = request.POST.get("password1", "")
         password2 = request.POST.get("password2", "")
 
@@ -113,16 +167,9 @@ def setup_manager(request):
                 for error in exc.messages:
                     messages.error(request, error)
             else:
-                user = User.objects.create_user(username=username, email=email, password=password1, is_staff=True)
-                user.profile.grant_manager_access()
-                user.profile.save()
-                if not Business.objects.exists():
-                    Business.objects.create(name="Dowitz Workspace", display_name="Dowitz", invoice_prefix="DOW")
-                for business in Business.objects.filter(is_active=True):
-                    membership, _ = BusinessMembership.objects.get_or_create(user=user, business=business)
-                    membership.grant_full_access()
-                    membership.save()
+                user, business = _create_workspace_owner(username, email, password1, business_name or f"{username}'s Workspace")
                 login(request, user)
+                request.session["active_business_id"] = business.pk
                 messages.success(request, "Manager account created.")
                 return redirect("core:dashboard")
 

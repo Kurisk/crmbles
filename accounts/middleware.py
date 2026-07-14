@@ -19,6 +19,7 @@ class CRMAccessMiddleware:
         "/accounts/login/",
         "/accounts/logout/",
         "/accounts/setup/",
+        "/accounts/signup/",
         "/static/",
         "/media/",
         "/admin/",
@@ -29,10 +30,10 @@ class CRMAccessMiddleware:
 
     def __call__(self, request):
         path = request.path
-        is_public = path.startswith(self.PUBLIC_PREFIXES)
+        is_public = path == "/" or path.startswith(self.PUBLIC_PREFIXES)
 
         if not get_user_model().objects.exists() and not is_public:
-            return redirect("accounts:setup")
+            return redirect("accounts:signup")
 
         if not request.user.is_authenticated and not is_public:
             return redirect(f"{reverse('accounts:login')}?next={request.get_full_path()}")
