@@ -1,0 +1,15 @@
+[Unit]
+Description=CRMbles Django app
+After=network.target
+
+[Service]
+User=crmbles
+Group=www-data
+WorkingDirectory=/var/www/crmbles/current
+EnvironmentFile=/etc/crmbles.env
+ExecStart=/var/www/crmbles/venv/bin/gunicorn crm_main.wsgi:application --bind 127.0.0.1:8031 --workers 3 --timeout 60
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -20,3 +20,13 @@ python manage.py check
 ```
 
 The future public domain target is `crmbles.com`.
+
+## Production Host
+
+The staging/live VPS target for this private deployment is:
+
+```text
+https://crmbles.skulkabout.com
+```
+
+Use the files in `deploy/` as the starting point for the VPS service, Nginx site, and environment values.

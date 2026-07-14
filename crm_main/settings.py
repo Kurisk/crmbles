@@ -18,7 +18,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Initialize environment variables
 env = environ.Env(
-    DEBUG=(bool, True)
+    DEBUG=(bool, True),
+    SECURE_SSL_REDIRECT=(bool, False),
+    SESSION_COOKIE_SECURE=(bool, False),
+    CSRF_COOKIE_SECURE=(bool, False),
 )
 # Read .env file
 environ.Env.read_env(env_file=BASE_DIR / '.env')
@@ -29,7 +32,8 @@ SECRET_KEY = env('SECRET_KEY', default='django-insecure-crmbles-modular-project-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 # Application definition
 
@@ -134,6 +138,11 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = env('SECURE_SSL_REDIRECT')
+SESSION_COOKIE_SECURE = env('SESSION_COOKIE_SECURE')
+CSRF_COOKIE_SECURE = env('CSRF_COOKIE_SECURE')
 
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'core:dashboard'
