@@ -63,6 +63,13 @@ EOF
   chown root:www-data "${ENV_FILE}"
 fi
 
+while IFS='=' read -r key value; do
+  [[ -z "${key}" || "${key}" =~ ^[[:space:]]*# ]] && continue
+  if [[ "${key}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    export "${key}=${value}"
+  fi
+done < "${ENV_FILE}"
+
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" migrate --noinput
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" collectstatic --noinput
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" check
