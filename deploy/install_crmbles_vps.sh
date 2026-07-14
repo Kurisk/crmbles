@@ -83,9 +83,12 @@ systemctl enable --now "${APP_NAME}"
 nginx -t
 systemctl reload nginx
 
-if ! certbot certificates 2>/dev/null | grep -q "Domains: .*${DOMAIN}"; then
-  certbot --nginx -d "${DOMAIN}"
-fi
+certbot --nginx \
+  --non-interactive \
+  --agree-tos \
+  --register-unsafely-without-email \
+  --redirect \
+  -d "${DOMAIN}"
 
 systemctl restart "${APP_NAME}"
 curl -I "https://${DOMAIN}/"
