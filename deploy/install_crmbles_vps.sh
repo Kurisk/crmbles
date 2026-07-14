@@ -70,9 +70,22 @@ while IFS='=' read -r key value; do
   fi
 done < "${ENV_FILE}"
 
-sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" migrate --noinput
-sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" collectstatic --noinput
-sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" check
+run_as_app() {
+  sudo -u "${APP_USER}" env \
+    SECRET_KEY="${SECRET_KEY}" \
+    DEBUG="${DEBUG}" \
+    ALLOWED_HOSTS="${ALLOWED_HOSTS}" \
+    CSRF_TRUSTED_ORIGINS="${CSRF_TRUSTED_ORIGINS}" \
+    DATABASE_URL="${DATABASE_URL}" \
+    SECURE_SSL_REDIRECT="${SECURE_SSL_REDIRECT}" \
+    SESSION_COOKIE_SECURE="${SESSION_COOKIE_SECURE}" \
+    CSRF_COOKIE_SECURE="${CSRF_COOKIE_SECURE}" \
+    "$@"
+}
+
+run_as_app "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" migrate --noinput
+run_as_app "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" collectstatic --noinput
+run_as_app "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" check
 
 install -m 0644 "${APP_DIR}/deploy/${APP_NAME}.service" "/etc/systemd/system/${APP_NAME}.service"
 install -m 0644 "${APP_DIR}/deploy/${APP_NAME}.nginx" "/etc/nginx/sites-available/${APP_NAME}"
