@@ -45,8 +45,8 @@ fi
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   SECRET_KEY="$("${VENV_DIR}/bin/python" - <<'PY'
-from django.core.management.utils import get_random_secret_key
-print(get_random_secret_key())
+import secrets
+print(secrets.token_urlsafe(50))
 PY
 )"
   cat > "${ENV_FILE}" <<EOF
@@ -62,10 +62,6 @@ EOF
   chmod 640 "${ENV_FILE}"
   chown root:www-data "${ENV_FILE}"
 fi
-
-set -a
-source "${ENV_FILE}"
-set +a
 
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" migrate --noinput
 sudo -u "${APP_USER}" "${VENV_DIR}/bin/python" "${APP_DIR}/manage.py" collectstatic --noinput
