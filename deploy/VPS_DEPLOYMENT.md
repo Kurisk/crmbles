@@ -18,6 +18,15 @@ This app is a standard Django WSGI deployment behind Nginx and Gunicorn. It shou
 
 ## Deploy Steps
 
+If you have root shell access on the VPS, the repeatable install path is:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kurisk/crmbles/main/deploy/install_crmbles_vps.sh -o /tmp/install_crmbles_vps.sh
+bash /tmp/install_crmbles_vps.sh
+```
+
+Manual equivalent:
+
 1. Create the `crmbles` system user and `/var/www/crmbles` directories.
 2. Clone `https://github.com/Kurisk/crmbles.git` into `/var/www/crmbles/current`.
 3. Create `/etc/crmbles.env` from `deploy/crmbles.env.example` with a real `SECRET_KEY`.
