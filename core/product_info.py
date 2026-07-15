@@ -1,16 +1,15 @@
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 SUPPORT_EMAIL = "dowitzgame@gmail.com"
 
 LATEST_UPDATE = {
-    "title": "Public Access Prep",
-    "date": "July 14, 2026",
-    "summary": "CRMbles now has a public FAQ, contact path, shared footer, and release notes surface.",
+    "title": "FAQ Style Refresh",
+    "date": "July 15, 2026",
+    "summary": "CRMbles now cache-busts shared styles so public FAQ and footer layouts load consistently.",
     "items": [
-        "Added a searchable FAQ page for future customers and internal users.",
-        "Added a temporary contact path that routes access requests to dowitzgame@gmail.com.",
-        "Added a standard footer with product version, support email, and release notes link.",
-        "Added a Latest Update page so footer release links point to a real changelog surface.",
-        "Added public navigation from the welcome page to FAQ and latest update details.",
+        "Added versioned stylesheet links so browsers pick up the newest public-page styling.",
+        "Kept the searchable FAQ, contact path, footer, and latest update surface available for prospective clients.",
+        "Preserved the temporary access request path through dowitzgame@gmail.com.",
+        "Updated the latest update page to reflect the current frontend polish pass.",
     ],
 }
 

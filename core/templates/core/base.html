@@ -8,7 +8,7 @@
     <!-- FontAwesome CDN for modern vector icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Premium CSS Design System -->
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v={{ app_version }}">
     <!-- Creative App Favicon -->
     <link rel="icon" type="image/png" href="{% static 'images/favicon.png' %}">
     {% block extra_css %}{% endblock %}

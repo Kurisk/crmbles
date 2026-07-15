@@ -3,6 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import Business, BusinessMembership
+from .product_info import APP_VERSION, LATEST_UPDATE
 
 
 class DashboardMetricLinkTests(TestCase):
@@ -74,7 +75,8 @@ class PublicProductInfoTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Search FAQ")
         self.assertContains(response, "dowitzgame@gmail.com")
-        self.assertContains(response, "CRMbles v0.2.0")
+        self.assertContains(response, f"CRMbles v{APP_VERSION}")
+        self.assertContains(response, f"css/style.css?v={APP_VERSION}")
         self.assertContains(response, reverse("core:latest_update"))
         self.assertContains(response, "Vendors, Clients, And Finance")
 
@@ -82,9 +84,9 @@ class PublicProductInfoTests(TestCase):
         response = self.client.get(reverse("core:latest_update"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Version 0.2.0")
-        self.assertContains(response, "Public Access Prep")
-        self.assertContains(response, "Added a searchable FAQ page")
+        self.assertContains(response, f"Version {APP_VERSION}")
+        self.assertContains(response, LATEST_UPDATE["title"])
+        self.assertContains(response, LATEST_UPDATE["items"][0])
 
     def test_public_welcome_includes_faq_and_support_footer(self):
         response = self.client.get(reverse("core:dashboard"))
