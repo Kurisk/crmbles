@@ -1,0 +1,111 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ | CRMbles</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <main class="public-page">
+        <nav class="public-nav" aria-label="Public navigation">
+            <a class="public-brand" href="{% url 'core:dashboard' %}">
+                <span class="logo-icon" style="margin-right: 0;">C</span>
+                <span class="logo-text">CRMbles</span>
+            </a>
+            <div class="public-nav-links">
+                <a href="{% url 'core:dashboard' %}">Home</a>
+                <a href="{% url 'accounts:login' %}">Sign In</a>
+                <a href="{% url 'accounts:signup' %}" class="btn btn-primary btn-sm">Sign Up</a>
+            </div>
+        </nav>
+
+        <section class="public-hero">
+            <div>
+                <span class="badge badge-info">Help Center</span>
+                <h1>CRMbles FAQ</h1>
+                <p>Search the current product notes, private access details, workspace permissions, projects, documents, vendors, clients, and finance workflows.</p>
+            </div>
+            <div class="contact-panel" id="contact">
+                <span class="card-title">Request Access</span>
+                <p>Potential client access is not fully automated yet. Until then, send requests and questions to {{ support_email }}.</p>
+                <a class="btn btn-primary" href="mailto:{{ support_email }}?subject=CRMbles%20Access%20Request&body=Name%3A%0ABusiness%3A%0AWhat%20I%20want%20to%20use%20CRMbles%20for%3A%0A">
+                    <i class="fa-solid fa-envelope"></i> Email CRMbles
+                </a>
+            </div>
+        </section>
+
+        <section class="faq-search-shell" aria-label="FAQ search">
+            <label for="faqSearch" class="form-label">Search FAQ</label>
+            <div class="faq-search-row">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input id="faqSearch" class="form-control" type="search" placeholder="Search access, invoices, vendors, permissions, bank monitoring..." autocomplete="off">
+            </div>
+            <p id="faqResultCount" class="faq-result-count"></p>
+        </section>
+
+        <section class="faq-layout" id="faqList">
+            {% for section in faq_sections %}
+            <div class="faq-section" data-faq-section>
+                <h2>{{ section.title }}</h2>
+                <div class="faq-items">
+                    {% for item in section.items %}
+                    <article class="faq-item" data-faq-item data-faq-text="{{ section.title }} {{ item.question }} {{ item.answer }}">
+                        <button class="faq-question" type="button" aria-expanded="false">
+                            <span>{{ item.question }}</span>
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </button>
+                        <div class="faq-answer">
+                            <p>{{ item.answer }}</p>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </section>
+    </main>
+
+    {% include 'core/partials/site_footer.html' %}
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const search = document.getElementById('faqSearch');
+            const items = Array.from(document.querySelectorAll('[data-faq-item]'));
+            const sections = Array.from(document.querySelectorAll('[data-faq-section]'));
+            const count = document.getElementById('faqResultCount');
+
+            document.querySelectorAll('.faq-question').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const item = button.closest('[data-faq-item]');
+                    const isOpen = item.classList.toggle('is-open');
+                    button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                });
+            });
+
+            function filterFaq() {
+                const query = search.value.trim().toLowerCase();
+                let visible = 0;
+
+                items.forEach((item) => {
+                    const isMatch = !query || item.dataset.faqText.toLowerCase().includes(query);
+                    item.hidden = !isMatch;
+                    if (isMatch) visible += 1;
+                });
+
+                sections.forEach((section) => {
+                    const hasVisibleItems = Array.from(section.querySelectorAll('[data-faq-item]')).some((item) => !item.hidden);
+                    section.hidden = !hasVisibleItems;
+                });
+
+                count.textContent = query ? `${visible} matching ${visible === 1 ? 'answer' : 'answers'}` : `${items.length} answers available`;
+            }
+
+            search.addEventListener('input', filterFaq);
+            filterFaq();
+        });
+    </script>
+</body>
+</html>

@@ -98,7 +98,7 @@
 </div>
 
 <!-- Board Scrolling Space -->
-<div id="boardViewContainer" style="display: flex; gap: 24px; overflow-x: auto; padding-bottom: 24px; align-items: flex-start; min-height: calc(100vh - 280px);">
+<div id="boardViewContainer" class="project-board-scroll" style="display: flex; gap: 24px; padding-bottom: 24px; align-items: flex-start; min-height: calc(100vh - 280px);">
     {% if task_lists %}
         {% for list in task_lists %}
         <div class="kanban-column" style="width: 320px; flex-shrink: 0;">
@@ -109,7 +109,7 @@
                     <span>{{ list.name }}</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="column-count">{{ list.tasks.count }}</span>
+                    <span class="column-count" data-active-count data-list-id="{{ list.id }}">{{ list.active_tasks|length }}</span>
                     <!-- Column Actions Hamburger Menu -->
                     <button onclick="toggleColumnMenu({{ list.id }}, event)" style="background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.95rem; padding: 2px 4px; display: flex; align-items: center; justify-content: center; transition: var(--transition-fast);" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-muted)'" title="Column Options">
                         <i class="fa-solid fa-bars"></i>
@@ -133,10 +133,14 @@
             {% if list.description %}
             <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: -8px; padding-left: 2px;">{{ list.description }}</p>
             {% endif %}
+
+            <button class="btn btn-secondary btn-sm" onclick="openAddTaskModal({{ list.id }}, '{{ list.name|escapejs }}')" style="width: 100%; border-style: dashed; background-color: transparent;">
+                <i class="fa-solid fa-plus"></i> Add Item
+            </button>
             
             <!-- Tasks Area -->
             <div style="display: flex; flex-direction: column; gap: 12px; flex-grow: 1; padding: 2px;">
-                {% for task in list.tasks.all %}
+                {% for task in list.active_tasks %}
                 <div class="task-card" id="task-card-{{ task.id }}" 
                      style="cursor: pointer;"
                      data-id="{{ task.id }}"
@@ -165,13 +169,24 @@
                             </div>
                         </div>
                         
-                        <!-- Delete specific task -->
-                        <form action="{% url 'projects:task_delete' task.id %}" method="POST" onsubmit="return confirm('Delete this task?');" onclick="event.stopPropagation()">
-                            {% csrf_token %}
-                            <button type="submit" style="background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.8rem; transition: var(--transition-fast);" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-muted)'">
-                                <i class="fa-regular fa-trash-can"></i>
-                            </button>
-                        </form>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <form action="{% url 'projects:task_pin' task.id %}" method="POST" onclick="event.stopPropagation()" style="margin: 0;">
+                                {% csrf_token %}
+                                <input type="hidden" name="pin" value="{% if task.is_pinned %}0{% else %}1{% endif %}">
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button type="submit" class="btn pin-button {% if task.is_pinned %}is-pinned{% endif %}" title="{% if task.is_pinned %}Unpin task{% else %}Pin task{% endif %}" aria-label="{% if task.is_pinned %}Unpin{% else %}Pin{% endif %} {{ task.title }}">
+                                    <i class="{% if task.is_pinned %}fa-solid{% else %}fa-regular{% endif %} fa-star"></i>
+                                </button>
+                            </form>
+
+                            <!-- Delete specific task -->
+                            <form action="{% url 'projects:task_delete' task.id %}" method="POST" onsubmit="return confirm('Delete this task?');" onclick="event.stopPropagation()">
+                                {% csrf_token %}
+                                <button type="submit" style="background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.8rem; transition: var(--transition-fast);" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-muted)'">
+                                    <i class="fa-regular fa-trash-can"></i>
+                                </button>
+                            </form>
+                        </div>
                     </div>
                     
                     {% if task.description %}
@@ -220,9 +235,22 @@
                 </div>
                 {% endfor %}
             </div>
+
+            <a href="{% url 'projects:task_overview' 'completed' %}?list={{ list.id }}"
+               class="completed-list-link"
+               data-completed-summary
+               data-list-id="{{ list.id }}"
+               {% if not list.completed_tasks_count %}style="display: none;"{% endif %}>
+                <span>
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <strong data-completed-count>{{ list.completed_tasks_count }}</strong>
+                    <span data-completed-label>completed item{{ list.completed_tasks_count|pluralize }}</span>
+                </span>
+                <span>View</span>
+            </a>
             
             <!-- Quick Add Task Button -->
-            <button class="btn btn-secondary btn-sm" onclick="openAddTaskModal({{ list.id }}, '{{ list.name }}')" style="width: 100%; border-style: dashed; background-color: transparent;">
+            <button class="btn btn-secondary btn-sm" onclick="openAddTaskModal({{ list.id }}, '{{ list.name|escapejs }}')" style="width: 100%; border-style: dashed; background-color: transparent;">
                 <i class="fa-solid fa-plus"></i> Add Item
             </button>
         </div>
@@ -244,6 +272,7 @@
     <!-- Quick Add Checklist Form -->
     <form action="{% url 'projects:task_quick_add' project.id %}" method="POST" style="margin-bottom: 24px; display: flex; gap: 12px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
         {% csrf_token %}
+        <input type="hidden" name="return_view" class="return-view-input" value="board">
         <input type="text" class="form-control" name="title" required placeholder="Type a task name and press Enter to add to checklist..." autocomplete="off" style="flex-grow: 1; padding: 10px 16px; font-weight: 500; margin-bottom: 0;">
         <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">
             <i class="fa-solid fa-plus"></i> Add Item
@@ -270,11 +299,21 @@
             </thead>
             <tbody id="masterTaskTableBody">
                 {% for list in task_lists %}
-                    {% for task in list.tasks.all %}
+                    {% for task in list.active_tasks %}
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: var(--transition-fast);" 
                         onmouseover="this.style.backgroundColor='rgba(255,255,255,0.02)';" 
                         onmouseout="this.style.backgroundColor='transparent';"
                         data-task-card-id="task-card-{{ task.id }}"
+                        data-id="{{ task.id }}"
+                        data-list-id="{{ list.id }}"
+                        data-title="{{ task.title }}"
+                        data-desc="{% if task.description %}{{ task.description }}{% endif %}"
+                        data-priority="{{ task.priority }}"
+                        data-raw-due="{% if task.due_date %}{{ task.due_date|date:'Y-m-d' }}{% endif %}"
+                        data-due="{% if task.due_date %}{{ task.due_date|date:'M d, Y' }}{% else %}No deadline set{% endif %}"
+                        data-status="{{ task.status }}"
+                        data-list="{{ list.name }}"
+                        data-tags="[{% for tag in task.tags.all %}{{ tag.id }}{% if not forloop.last %},{% endif %}{% endfor %}]"
                         onclick="triggerCardClick(this)">
                         <td style="padding: 14px 16px; width: 48px; text-align: center;" onclick="event.stopPropagation()">
                             <input type="checkbox" class="task-toggle-checkbox" 
@@ -284,6 +323,11 @@
                         </td>
                         <td style="padding: 14px 16px; font-weight: 600; color: var(--text-primary);">
                             <span class="task-label {% if task.status == 'DONE' %}completed-item{% endif %}" id="task-text-{{ task.id }}">{{ task.title }}</span>
+                            <div class="task-notes-cache" style="display: none;">
+                                {% for note in task.notes.all %}
+                                <div class="cache-note" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                                {% endfor %}
+                            </div>
                         </td>
                         <td style="padding: 14px 16px; color: var(--text-secondary);">{{ list.name }}</td>
                         <td style="padding: 14px 16px;" data-val="{{ task.status }}">
@@ -320,6 +364,86 @@
                     </tr>
                     {% endfor %}
                 {% endfor %}
+                <tr class="master-completed-toggle-row" data-completed-toggle-row onclick="toggleCompletedMasterRows()" {% if not completed_tasks %}style="display: none;"{% endif %}>
+                    <td colspan="7">
+                        <button type="button" class="master-completed-toggle" data-completed-toggle-button>
+                            <span>
+                                <i class="fa-solid fa-clipboard-check"></i>
+                                <strong data-master-completed-count>{{ completed_tasks }}</strong>
+                                <span data-master-completed-count-label>completed task{{ completed_tasks|pluralize }}</span>
+                            </span>
+                            <span data-completed-toggle-label>Show</span>
+                        </button>
+                    </td>
+                </tr>
+                {% if completed_tasks %}
+                {% for list in task_lists %}
+                    {% for task in list.tasks.all %}
+                    {% if task.status == 'DONE' %}
+                    <tr class="master-completed-row" data-completed-row style="display: none; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: var(--transition-fast);"
+                        onmouseover="this.style.backgroundColor='rgba(255,255,255,0.02)';"
+                        onmouseout="this.style.backgroundColor='transparent';"
+                        data-task-card-id="task-card-{{ task.id }}"
+                        data-id="{{ task.id }}"
+                        data-list-id="{{ list.id }}"
+                        data-title="{{ task.title }}"
+                        data-desc="{% if task.description %}{{ task.description }}{% endif %}"
+                        data-priority="{{ task.priority }}"
+                        data-raw-due="{% if task.due_date %}{{ task.due_date|date:'Y-m-d' }}{% endif %}"
+                        data-due="{% if task.due_date %}{{ task.due_date|date:'M d, Y' }}{% else %}No deadline set{% endif %}"
+                        data-status="{{ task.status }}"
+                        data-list="{{ list.name }}"
+                        data-tags="[{% for tag in task.tags.all %}{{ tag.id }}{% if not forloop.last %},{% endif %}{% endfor %}]"
+                        onclick="triggerCardClick(this)">
+                        <td style="padding: 14px 16px; width: 48px; text-align: center;" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="task-toggle-checkbox"
+                                   data-task-id="{{ task.id }}"
+                                   checked
+                                   onchange="toggleTaskStatus(this)">
+                        </td>
+                        <td style="padding: 14px 16px; font-weight: 600; color: var(--text-primary);">
+                            <span class="task-label completed-item" id="task-text-{{ task.id }}">{{ task.title }}</span>
+                            <div class="task-notes-cache" style="display: none;">
+                                {% for note in task.notes.all %}
+                                <div class="cache-note" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td style="padding: 14px 16px; color: var(--text-secondary);">{{ list.name }}</td>
+                        <td style="padding: 14px 16px;" data-val="{{ task.status }}">
+                            <span class="badge badge-success">Done</span>
+                        </td>
+                        <td style="padding: 14px 16px;" data-val="{% if task.priority == 'HIGH' %}3{% elif task.priority == 'MEDIUM' %}2{% else %}1{% endif %}">
+                            <span class="badge {% if task.priority == 'HIGH' %}badge-danger{% elif task.priority == 'MEDIUM' %}badge-warning{% else %}badge-info{% endif %}">
+                                {{ task.priority }}
+                            </span>
+                        </td>
+                        <td style="padding: 14px 16px;" data-val="{% if task.due_date %}{{ task.due_date|date:'Y-m-d' }}{% else %}9999-12-31{% endif %}">
+                            <span class="task-due">
+                                {% if task.due_date %}
+                                <i class="fa-regular fa-calendar-days" style="margin-right: 4px;"></i> {{ task.due_date|date:"M d, Y" }}
+                                {% else %}
+                                <span style="opacity: 0.35;">No date</span>
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td style="padding: 14px 16px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                {% for tag in task.tags.all %}
+                                <span class="badge-tag" style="background-color: {{ tag.color }}15; color: {{ tag.color }}; border: 1px solid {{ tag.color }}30; font-size: 0.62rem; padding: 1px 6px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 3px;">
+                                    <span style="display: inline-block; width: 4px; height: 4px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                                    {{ tag.name }}
+                                </span>
+                                {% empty %}
+                                <span style="color: var(--text-muted); font-size: 0.75rem; opacity: 0.5;">--</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                {% endfor %}
+                {% endif %}
             </tbody>
         </table>
     </div>
@@ -363,6 +487,7 @@
         
         <form id="newTaskForm" action="" method="POST">
             {% csrf_token %}
+            <input type="hidden" name="return_view" class="return-view-input" value="board">
             <div class="form-group">
                 <label for="taskTitle" class="form-label">Task Summary *</label>
                 <input type="text" class="form-control" id="taskTitle" name="title" required placeholder="What needs to be done?" autocomplete="off">
@@ -375,7 +500,7 @@
             
             <!-- Visual Tag Multiselect -->
             <div class="form-group">
-                <label class="form-label" style="font-size: 0.85rem;">Associate Tags</label>
+                <label class="form-label" style="font-size: 0.85rem;">Add Tags</label>
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
                     {% for tag in tags %}
                     <label class="tag-selector-pill" style="cursor: pointer; position: relative;">
@@ -426,6 +551,7 @@
         <!-- Editable Task Form -->
         <form id="editTaskForm" method="POST" action="">
             {% csrf_token %}
+            <input type="hidden" name="return_view" class="return-view-input" value="board">
             <div class="form-group">
                 <label for="editTaskTitle" class="form-label" style="font-size: 0.8rem;">Task Summary *</label>
                 <input type="text" class="form-control" name="title" id="editTaskTitle" required placeholder="What needs to be done?" autocomplete="off" style="font-weight: 600;">
@@ -474,8 +600,11 @@
             
             <!-- Visual Tag Multiselect (Edit) -->
             <div class="form-group" style="margin-top: 14px;">
-                <label class="form-label" style="font-size: 0.8rem;">Associate Tags</label>
-                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
+                <label class="form-label" style="font-size: 0.8rem;">Tags on this task</label>
+                <div id="editSelectedTagsEmpty" style="display: none; color: var(--text-muted); font-size: 0.8rem; font-style: italic; margin-top: 4px;">
+                    No tags on this task yet.
+                </div>
+                <div id="editTagPicker" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px;">
                     {% for tag in tags %}
                     <label class="tag-selector-pill edit-tag-pill" style="cursor: pointer; position: relative;">
                         <input type="checkbox" name="tags" value="{{ tag.id }}" id="edit-tag-{{ tag.id }}" style="display: none;" onchange="updateTagPillStyle(this)">
@@ -488,6 +617,11 @@
                     <span style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No tags created yet.</span>
                     {% endfor %}
                 </div>
+                {% if tags %}
+                <button type="button" class="btn btn-secondary btn-sm" id="editTagPickerToggle" onclick="toggleEditTagPicker()" style="align-self: flex-start; margin-top: 10px;">
+                    <i class="fa-solid fa-tag"></i> Add Associated Tags
+                </button>
+                {% endif %}
             </div>
             
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 14px;">
@@ -617,6 +751,7 @@
     function toggleTaskStatus(checkbox) {
         const taskId = checkbox.dataset.taskId;
         const isChecked = checkbox.checked;
+        const boardCard = document.getElementById(`task-card-${taskId}`);
         
         // Optimistic UI updates - select all related elements across views
         const boardTitle = document.getElementById(`task-title-${taskId}`);
@@ -626,6 +761,10 @@
         // Set all matching checkboxes to the same state
         const allMatchingCheckboxes = document.querySelectorAll(`input[data-task-id="${taskId}"]`);
         allMatchingCheckboxes.forEach(cb => cb.checked = isChecked);
+        const taskDetailSources = document.querySelectorAll(`[data-id="${taskId}"]`);
+        taskDetailSources.forEach(source => {
+            source.dataset.status = isChecked ? 'DONE' : 'TODO';
+        });
         
         const titles = [boardTitle, tableTitle];
         titles.forEach(t => {
@@ -660,6 +799,9 @@
             if (!response.ok) {
                 // Rollback UI on error
                 allMatchingCheckboxes.forEach(cb => cb.checked = !isChecked);
+                taskDetailSources.forEach(source => {
+                    source.dataset.status = isChecked ? 'TODO' : 'DONE';
+                });
                 titles.forEach(t => {
                     if (t) t.classList.toggle('completed-item');
                 });
@@ -670,10 +812,19 @@
                 alert('Error updating task status.');
             } else {
                 console.log(`Task ${taskId} status updated.`);
+                if (isChecked && boardCard) {
+                    collapseCompletedBoardCard(boardCard);
+                } else if (!isChecked && boardCard) {
+                    boardCard.dataset.status = 'TODO';
+                }
+                syncMasterCompletedSection();
             }
         })
         .catch(err => {
             allMatchingCheckboxes.forEach(cb => cb.checked = !isChecked);
+            taskDetailSources.forEach(source => {
+                source.dataset.status = isChecked ? 'TODO' : 'DONE';
+            });
             titles.forEach(t => {
                 if (t) t.classList.toggle('completed-item');
             });
@@ -683,6 +834,33 @@
             }
             console.error('AJAX Error:', err);
         });
+    }
+
+    function collapseCompletedBoardCard(card) {
+        const listId = card.dataset.listId;
+        const column = card.closest('.kanban-column');
+        const activeCount = column ? column.querySelector(`[data-active-count][data-list-id="${listId}"]`) : null;
+        const completedSummary = column ? column.querySelector(`[data-completed-summary][data-list-id="${listId}"]`) : null;
+        const completedCount = completedSummary ? completedSummary.querySelector('[data-completed-count]') : null;
+
+        card.dataset.status = 'DONE';
+        card.classList.add('is-collapsing');
+
+        if (activeCount) {
+            activeCount.textContent = Math.max(0, parseInt(activeCount.textContent || '0', 10) - 1);
+        }
+
+        if (completedSummary && completedCount) {
+            const nextCount = parseInt(completedCount.textContent || '0', 10) + 1;
+            completedCount.textContent = nextCount;
+            completedSummary.style.display = 'flex';
+            const label = completedSummary.querySelector('[data-completed-label]');
+            if (label) {
+                label.textContent = `completed item${nextCount === 1 ? '' : 's'}`;
+            }
+        }
+
+        setTimeout(() => card.remove(), 180);
     }
 
     // Modal toggling scripts
@@ -701,6 +879,7 @@
     function openAddTaskModal(listId, listName) {
         document.getElementById('targetListNameSpan').innerText = listName;
         document.getElementById('newTaskForm').action = `/projects/lists/${listId}/tasks/create/`;
+        setReturnViewInputs(currentProjectView());
         
         // Reset checkmarks in Create Modal
         const newTagPills = document.querySelectorAll('#newTaskForm .tag-selector-pill input[type="checkbox"]');
@@ -732,6 +911,7 @@
         // Map form action URLs dynamically
         document.getElementById('editTaskForm').action = `/projects/tasks/${id}/update/`;
         document.getElementById('addTaskNoteForm').action = `/projects/tasks/${id}/notes/create/`;
+        setReturnViewInputs(currentProjectView());
         
         // Populate inputs
         document.getElementById('editTaskTitle').value = title;
@@ -747,6 +927,7 @@
             cb.checked = false;
             updateTagPillStyle(cb);
         });
+        updateEditTagVisibility(false);
         
         const rawTags = card.dataset.tags;
         if (rawTags) {
@@ -763,6 +944,7 @@
                 console.error("Error parsing task tags:", err);
             }
         }
+        updateEditTagVisibility(false);
         
         // Populate notes timeline
         const notesCache = card.querySelectorAll('.task-notes-cache .cache-note');
@@ -799,11 +981,29 @@
     }
     
     // Switch between Kanban Board and Master List View
-    function switchView(view) {
+    function currentProjectView() {
+        return window.location.hash === '#list' ? 'list' : 'board';
+    }
+
+    function setReturnViewInputs(view) {
+        document.querySelectorAll('.return-view-input').forEach(input => {
+            input.value = view;
+        });
+    }
+
+    function syncProjectViewHash(view) {
+        const nextUrl = view === 'list'
+            ? `${window.location.pathname}${window.location.search}#list`
+            : `${window.location.pathname}${window.location.search}`;
+        window.history.replaceState(null, '', nextUrl);
+    }
+
+    function switchView(view, updateHash = true) {
         const boardBtn = document.getElementById('btnBoardView');
         const listBtn = document.getElementById('btnListView');
         const boardContainer = document.getElementById('boardViewContainer');
         const listContainer = document.getElementById('listViewContainer');
+        setReturnViewInputs(view);
         
         if (view === 'board') {
             boardContainer.style.display = 'flex';
@@ -816,24 +1016,91 @@
             boardBtn.className = 'btn btn-secondary';
             listBtn.className = 'btn btn-primary';
         }
+
+        if (updateHash) {
+            syncProjectViewHash(view);
+        }
     }
     
     // Row click in table to trigger modal
     function triggerCardClick(row) {
         const cardId = row.dataset.taskCardId;
         const card = document.getElementById(cardId);
-        if (card) {
-            viewTaskDetails(card);
-        }
+        viewTaskDetails(card || row);
     }
     
     // Master Table sorting logic
     let currentSortCol = -1;
     let currentSortAsc = true;
+
+    function completedRowsCollapsed() {
+        const toggleRow = document.querySelector('[data-completed-toggle-row]');
+        return !toggleRow || toggleRow.dataset.collapsed !== 'false';
+    }
+
+    function toggleCompletedMasterRows() {
+        const toggleRow = document.querySelector('[data-completed-toggle-row]');
+        if (!toggleRow) return;
+
+        toggleRow.dataset.collapsed = completedRowsCollapsed() ? 'false' : 'true';
+        syncMasterCompletedSection();
+    }
+
+    function syncMasterCompletedSection() {
+        const tbody = document.getElementById('masterTaskTableBody');
+        const toggleRow = document.querySelector('[data-completed-toggle-row]');
+        const taskRows = tbody ? Array.from(tbody.querySelectorAll('tr:not([data-completed-toggle-row])')) : [];
+        taskRows.forEach(row => {
+            if (row.dataset.status === 'DONE') {
+                row.dataset.completedRow = '';
+                row.classList.add('master-completed-row');
+            } else {
+                delete row.dataset.completedRow;
+                row.classList.remove('master-completed-row');
+                row.style.display = '';
+            }
+        });
+
+        if (tbody) {
+            orderedMasterRows(taskRows).forEach(row => tbody.appendChild(row));
+        }
+
+        const completedRows = document.querySelectorAll('[data-completed-row]');
+        const label = document.querySelector('[data-completed-toggle-label]');
+        const count = document.querySelector('[data-master-completed-count]');
+        const countLabel = document.querySelector('[data-master-completed-count-label]');
+        const collapsed = completedRowsCollapsed();
+
+        completedRows.forEach(row => {
+            row.style.display = collapsed ? 'none' : '';
+        });
+
+        if (label) {
+            label.textContent = collapsed ? 'Show' : 'Hide';
+        }
+
+        if (toggleRow) {
+            toggleRow.style.display = completedRows.length ? '' : 'none';
+        }
+
+        if (count) {
+            count.textContent = completedRows.length;
+        }
+        if (countLabel) {
+            countLabel.textContent = `completed task${completedRows.length === 1 ? '' : 's'}`;
+        }
+    }
+
+    function orderedMasterRows(rows) {
+        const activeRows = rows.filter(row => row.dataset.status !== 'DONE');
+        const completedRows = rows.filter(row => row.dataset.status === 'DONE');
+        const toggleRow = document.querySelector('[data-completed-toggle-row]');
+        return toggleRow ? [...activeRows, toggleRow, ...completedRows] : [...activeRows, ...completedRows];
+    }
     
     function sortTable(colIndex, type) {
         const tbody = document.getElementById('masterTaskTableBody');
-        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const rows = Array.from(tbody.querySelectorAll('tr:not([data-completed-toggle-row])'));
         
         // Toggling sort direction
         if (currentSortCol === colIndex) {
@@ -866,7 +1133,8 @@
         
         // Clear and re-append rows
         tbody.innerHTML = '';
-        rows.forEach(row => tbody.appendChild(row));
+        orderedMasterRows(rows).forEach(row => tbody.appendChild(row));
+        syncMasterCompletedSection();
         
         // Visual indicator update
         const headers = document.querySelectorAll('thead th');
@@ -887,10 +1155,11 @@
     // Hash routing to remember active view switcher state
     document.addEventListener('DOMContentLoaded', () => {
         if (window.location.hash === '#list') {
-            switchView('list');
+            switchView('list', false);
         } else {
-            switchView('board');
+            switchView('board', false);
         }
+        syncMasterCompletedSection();
     });
 
     // Toggle column options dropdown menu
@@ -981,6 +1250,43 @@
             pill.style.color = 'var(--text-secondary)';
             pill.style.boxShadow = 'none';
         }
+
+        if (checkbox.closest('.edit-tag-pill')) {
+            const picker = document.getElementById('editTagPicker');
+            updateEditTagVisibility(picker && picker.dataset.showAll === 'true');
+        }
+    }
+
+    function updateEditTagVisibility(showAll = false) {
+        const picker = document.getElementById('editTagPicker');
+        const emptyState = document.getElementById('editSelectedTagsEmpty');
+        const toggleButton = document.getElementById('editTagPickerToggle');
+        if (!picker) return;
+
+        picker.dataset.showAll = showAll ? 'true' : 'false';
+        let selectedCount = 0;
+        picker.querySelectorAll('.edit-tag-pill').forEach(label => {
+            const checkbox = label.querySelector('input[type="checkbox"]');
+            if (!checkbox) return;
+
+            const isSelected = checkbox.checked;
+            if (isSelected) selectedCount += 1;
+            label.style.display = (showAll || isSelected) ? 'inline-flex' : 'none';
+        });
+
+        if (emptyState) {
+            emptyState.style.display = selectedCount === 0 && !showAll ? 'block' : 'none';
+        }
+        if (toggleButton) {
+            toggleButton.innerHTML = showAll
+                ? '<i class="fa-solid fa-chevron-up"></i> Hide Available Tags'
+                : '<i class="fa-solid fa-tag"></i> Add Associated Tags';
+        }
+    }
+
+    function toggleEditTagPicker() {
+        const picker = document.getElementById('editTagPicker');
+        updateEditTagVisibility(!(picker && picker.dataset.showAll === 'true'));
     }
 
     // Modal triggers for Manage Workspace Tags
@@ -1068,11 +1374,10 @@
             const cardId = row.dataset.taskCardId;
             const card = document.getElementById(cardId);
             let cardTags = [];
-            if (card) {
-                try {
-                    cardTags = JSON.parse(card.dataset.tags || '[]');
-                } catch(e) {}
-            }
+            const tagSource = card || row;
+            try {
+                cardTags = JSON.parse(tagSource.dataset.tags || '[]');
+            } catch(e) {}
             
             const match = cardTags.some(t => activeFilterTags.has(t));
             row.style.display = match ? '' : 'none';

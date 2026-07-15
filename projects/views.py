@@ -4,13 +4,23 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_protect
 from django.contrib import messages
+from django.urls import reverse
+from core.pinning import apply_pin_state, safe_redirect_target
+from .defaults import ensure_default_task_tags
 from .models import Project, TaskList, Task, TaskNote, Tag
+
+
+def _project_detail_redirect(project_pk, request=None):
+    url = reverse('projects:project_detail', kwargs={'pk': project_pk})
+    if request and request.POST.get('return_view') == 'list':
+        url = f'{url}#list'
+    return redirect(url)
 
 def project_list(request):
     """
     Lists all active projects and workspace folders.
     """
-    projects = Project.objects.filter(business=request.business).order_by('-created_at')
+    projects = Project.objects.filter(business=request.business).order_by('-is_pinned', '-pinned_at', '-created_at')
     
     # Calculate statistics for each project
     project_stats = []
@@ -37,8 +47,12 @@ def project_detail(request, pk):
     Groups tasks by custom TaskLists and handles task additions.
     """
     project = get_object_or_404(Project, pk=pk, business=request.business)
-    # Prefetch task lists and their tasks
-    task_lists = project.task_lists.all().prefetch_related('tasks__tags', 'tasks__notes')
+    # Prefetch task lists and split board cards into active vs completed.
+    task_lists = list(project.task_lists.all().prefetch_related('tasks__tags', 'tasks__notes'))
+    for task_list in task_lists:
+        tasks = list(task_list.tasks.all())
+        task_list.active_tasks = [task for task in tasks if task.status != 'DONE']
+        task_list.completed_tasks_count = len(tasks) - len(task_list.active_tasks)
     
     # Calculate general metrics
     total_tasks = Task.objects.filter(list__project=project).count()
@@ -65,6 +79,62 @@ def project_detail(request, pk):
     return render(request, 'projects/project_detail.html', context)
 
 
+def task_overview(request, status):
+    """
+    Shows all pending or completed tasks grouped by their project board.
+    """
+    list_filter = None
+    list_id = request.GET.get('list')
+    if list_id:
+        list_filter = get_object_or_404(
+            TaskList.objects.select_related('project'),
+            pk=list_id,
+            project__business=request.business,
+        )
+
+    if status == 'pending':
+        tasks = Task.objects.filter(list__project__business=request.business).exclude(status='DONE')
+        page_title = 'Pending Tasks'
+        empty_message = 'No pending tasks found.'
+        task_status = 'pending'
+    elif status == 'completed':
+        tasks = Task.objects.filter(list__project__business=request.business, status='DONE')
+        page_title = 'Completed Tasks'
+        empty_message = 'No completed tasks found.'
+        task_status = 'completed'
+    else:
+        return HttpResponseBadRequest('Unknown task status view.')
+
+    if list_filter:
+        tasks = tasks.filter(list=list_filter)
+        page_title = f'{page_title}: {list_filter.name}'
+        empty_message = f'No {task_status} tasks found in {list_filter.name}.'
+
+    tasks = tasks.select_related('list__project').order_by('list__project__name', 'due_date', '-created_at')
+    grouped_projects = []
+    current_project = None
+    current_group = None
+
+    for task in tasks:
+        project = task.list.project
+        if current_project != project.id:
+            current_project = project.id
+            current_group = {
+                'project': project,
+                'tasks': [],
+            }
+            grouped_projects.append(current_group)
+        current_group['tasks'].append(task)
+
+    return render(request, 'projects/task_overview.html', {
+        'grouped_projects': grouped_projects,
+        'page_title': page_title,
+        'empty_message': empty_message,
+        'task_status': task_status,
+        'list_filter': list_filter,
+    })
+
+
 @require_POST
 def project_create(request):
     """
@@ -74,8 +144,32 @@ def project_create(request):
     description = request.POST.get('description', '')
     if name:
         project = Project.objects.create(name=name, description=description, business=request.business)
+        ensure_default_task_tags(project)
         return redirect('projects:project_detail', pk=project.pk)
     return redirect('projects:project_list')
+
+
+@require_POST
+def project_delete(request, project_id):
+    """
+    Deletes a project board and its task lists/tasks. Restricted to managers.
+    """
+    if not request.user.profile.is_manager:
+        messages.error(request, "Only managers can delete project boards.")
+        return redirect('projects:project_list')
+
+    project = get_object_or_404(Project, pk=project_id, business=request.business)
+    project_name = project.name
+    project.delete()
+    messages.success(request, f"Project board '{project_name}' deleted.")
+    return redirect('projects:project_list')
+
+
+@require_POST
+def project_pin(request, project_id):
+    project = get_object_or_404(Project, pk=project_id, business=request.business)
+    apply_pin_state(project, request.POST.get('pin') == '1')
+    return redirect(safe_redirect_target(request, reverse('projects:project_list')))
 
 
 @require_POST
@@ -116,7 +210,7 @@ def task_create(request, list_id):
         )
         if tag_ids:
             task.tags.set(tag_ids)
-    return redirect('projects:project_detail', pk=task_list.project.pk)
+    return _project_detail_redirect(task_list.project.pk, request)
 
 
 @require_POST
@@ -135,6 +229,13 @@ def task_toggle(request, task_id):
         return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@require_POST
+def task_pin(request, task_id):
+    task = get_object_or_404(Task, pk=task_id, list__project__business=request.business)
+    apply_pin_state(task, request.POST.get('pin') == '1')
+    return redirect(safe_redirect_target(request, reverse('projects:project_detail', kwargs={'pk': task.list.project.pk})))
 
 
 @require_POST
@@ -181,7 +282,7 @@ def task_update(request, task_id):
         task.save()
         task.tags.set(tag_ids)
         messages.success(request, f"Task '{title}' updated successfully.")
-    return redirect('projects:project_detail', pk=task.list.project.pk)
+    return _project_detail_redirect(task.list.project.pk, request)
 
 
 @require_POST
@@ -222,7 +323,7 @@ def task_quick_add(request, project_id):
         )
         messages.success(request, f"Added checklist item: '{title}'")
         
-    return redirect(f'/projects/{project_id}/#list')
+    return _project_detail_redirect(project_id, request)
 
 
 @require_POST

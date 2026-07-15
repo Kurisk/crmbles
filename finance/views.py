@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.db.models import Q, Sum
 from decimal import Decimal, InvalidOperation
 from projects.models import Project
+from clients.models import Client
 from vendors.models import Vendor
 from .models import Invoice, InvoiceLineItem, Expense, ExpenseLineItem, CapitalInjection, ExpenseCategory, IndustryExpenseItem
 
@@ -70,10 +71,12 @@ def finance_dashboard(request):
 
     # Lists
     invoice_query = request.GET.get('invoice_q', '').strip()
-    invoices = invoice_base.select_related('project', 'vendor').prefetch_related('line_items')
+    invoices = invoice_base.select_related('project', 'vendor', 'client').prefetch_related('line_items')
     if invoice_query:
         invoices = invoices.filter(
             Q(client_name__icontains=invoice_query) |
+            Q(client__name__icontains=invoice_query) |
+            Q(client__company__icontains=invoice_query) |
             Q(title__icontains=invoice_query) |
             Q(notes__icontains=invoice_query) |
             Q(project__name__icontains=invoice_query) |
@@ -86,6 +89,7 @@ def finance_dashboard(request):
 
     # Help dynamic dropdown selections in modal creation
     all_projects = Project.objects.filter(business=business)
+    all_clients = Client.objects.filter(business=business)
     all_vendors = Vendor.objects.filter(business=business).prefetch_related('services')
 
     # Dynamic Choice list representations
@@ -108,6 +112,7 @@ def finance_dashboard(request):
         'industry_items': industry_items,
         
         'all_projects': all_projects,
+        'all_clients': all_clients,
         'all_vendors': all_vendors,
         'injection_types': injection_types,
         'invoice_statuses': invoice_statuses,
@@ -194,6 +199,7 @@ def industry_item_delete(request, pk):
 def invoice_create(request):
     if request.method == 'POST':
         client_name = request.POST.get('client_name')
+        client_id = request.POST.get('client')
         title = request.POST.get('title')
         project_id = request.POST.get('project')
         vendor_id = request.POST.get('vendor')
@@ -211,8 +217,14 @@ def invoice_create(request):
         if vendor_id:
             vendor = get_object_or_404(Vendor, pk=vendor_id, business=request.business)
 
+        client = None
+        if client_id:
+            client = get_object_or_404(Client, pk=client_id, business=request.business)
+            client_name = client.name
+
         invoice = Invoice.objects.create(
             client_name=client_name,
+            client=client,
             title=title,
             business=request.business,
             project=project,
@@ -231,6 +243,7 @@ def invoice_update(request, pk):
     invoice = get_object_or_404(Invoice, pk=pk, business=request.business)
     if request.method == 'POST':
         invoice.client_name = request.POST.get('client_name')
+        client_id = request.POST.get('client')
         invoice.title = request.POST.get('title')
         project_id = request.POST.get('project')
         vendor_id = request.POST.get('vendor')
@@ -249,6 +262,12 @@ def invoice_update(request, pk):
             invoice.vendor = get_object_or_404(Vendor, pk=vendor_id, business=request.business)
         else:
             invoice.vendor = None
+
+        if client_id:
+            invoice.client = get_object_or_404(Client, pk=client_id, business=request.business)
+            invoice.client_name = invoice.client.name
+        else:
+            invoice.client = None
 
         invoice.save()
         _sync_invoice_line_items(invoice, line_items)

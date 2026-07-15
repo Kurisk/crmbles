@@ -12,9 +12,31 @@ class UserProfile(models.Model):
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_USER)
+    photo = models.FileField(upload_to="profile_photos/", blank=True)
+    job_title = models.CharField(max_length=120, blank=True)
+    office = models.CharField(max_length=120, blank=True)
+    phone_number = models.CharField(max_length=30, blank=True)
+    mobile_number = models.CharField(max_length=30, blank=True)
+    address_line1 = models.CharField(max_length=160, blank=True)
+    address_line2 = models.CharField(max_length=160, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=100, default="United States", blank=True)
+    emergency_contact_name = models.CharField(max_length=120, blank=True)
+    emergency_contact_phone = models.CharField(max_length=30, blank=True)
+    team = models.CharField(max_length=120, blank=True)
+    supervisor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="direct_reports",
+        null=True,
+        blank=True,
+    )
     can_access_projects = models.BooleanField(default=False)
     can_access_documents = models.BooleanField(default=False)
     can_access_vendors = models.BooleanField(default=False)
+    can_access_clients = models.BooleanField(default=False)
     can_access_finance = models.BooleanField(default=False)
     can_manage_accounts = models.BooleanField(default=False)
 
@@ -37,6 +59,7 @@ class UserProfile(models.Model):
         self.can_access_projects = True
         self.can_access_documents = True
         self.can_access_vendors = True
+        self.can_access_clients = True
         self.can_access_finance = True
         self.can_manage_accounts = True
 
@@ -59,6 +82,8 @@ class Business(models.Model):
     fiscal_year_start_month = models.PositiveSmallIntegerField(default=1)
     invoice_prefix = models.CharField(max_length=20, blank=True)
     brand_color = models.CharField(max_length=7, default="#6366f1")
+    is_pinned = models.BooleanField(default=False)
+    pinned_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -76,6 +101,7 @@ class BusinessMembership(models.Model):
     can_access_projects = models.BooleanField(default=False)
     can_access_documents = models.BooleanField(default=False)
     can_access_vendors = models.BooleanField(default=False)
+    can_access_clients = models.BooleanField(default=False)
     can_access_finance = models.BooleanField(default=False)
     can_manage_accounts = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -96,5 +122,6 @@ class BusinessMembership(models.Model):
         self.can_access_projects = True
         self.can_access_documents = True
         self.can_access_vendors = True
+        self.can_access_clients = True
         self.can_access_finance = True
         self.can_manage_accounts = True

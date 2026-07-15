@@ -1,0 +1,51 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latest Update | CRMbles</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <main class="public-page">
+        <nav class="public-nav" aria-label="Public navigation">
+            <a class="public-brand" href="{% url 'core:dashboard' %}">
+                <span class="logo-icon" style="margin-right: 0;">C</span>
+                <span class="logo-text">CRMbles</span>
+            </a>
+            <div class="public-nav-links">
+                <a href="{% url 'core:faq' %}">FAQ</a>
+                <a href="{% url 'accounts:login' %}">Sign In</a>
+            </div>
+        </nav>
+
+        <section class="public-hero update-hero">
+            <div>
+                <span class="badge badge-success">Version {{ app_version }}</span>
+                <h1>{{ latest_update.title }}</h1>
+                <p>{{ latest_update.summary }}</p>
+            </div>
+            <div class="contact-panel">
+                <span class="card-title">{{ latest_update.date }}</span>
+                <p>Questions about this release or future access can go to {{ support_email }}.</p>
+                <a class="btn btn-secondary" href="mailto:{{ support_email }}?subject=CRMbles%20Version%20{{ app_version }}">
+                    <i class="fa-solid fa-envelope"></i> Contact
+                </a>
+            </div>
+        </section>
+
+        <section class="update-list card">
+            <h2>What Changed</h2>
+            <ul>
+                {% for item in latest_update.items %}
+                <li><i class="fa-solid fa-circle-check"></i><span>{{ item }}</span></li>
+                {% endfor %}
+            </ul>
+        </section>
+    </main>
+
+    {% include 'core/partials/site_footer.html' %}
+</body>
+</html>

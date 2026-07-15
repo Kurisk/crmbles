@@ -2,7 +2,7 @@
 
 {% block title %}Account Manager | CRMbles{% endblock %}
 {% block header_title %}Account Manager{% endblock %}
-{% block header_subtitle %}Create accounts and control which CRM features each person can use.{% endblock %}
+{% block header_subtitle %}Create accounts and control each person's business access.{% endblock %}
 
 {% block header_actions %}
 <button class="btn btn-primary" onclick="openCreateUserModal()">
@@ -22,7 +22,7 @@
                 <tr style="border-bottom: 1px solid var(--border-color); background-color: rgba(255,255,255,0.01); font-size: 0.85rem;">
                     <th style="padding: 14px 18px;">Account</th>
                     <th style="padding: 14px 18px;">Role</th>
-                    <th style="padding: 14px 18px;">Allowed Features</th>
+                    <th style="padding: 14px 18px;">Business Access</th>
                     <th style="padding: 14px 18px;">Status</th>
                     <th style="padding: 14px 18px; text-align: right;">Actions</th>
                 </tr>
@@ -42,11 +42,16 @@
                     </td>
                     <td style="padding: 16px 18px;">
                         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                            {% if account.profile.is_manager or account.profile.can_access_projects %}<span class="badge badge-info">Projects</span>{% endif %}
-                            {% if account.profile.is_manager or account.profile.can_access_documents %}<span class="badge badge-info">Documents</span>{% endif %}
-                            {% if account.profile.is_manager or account.profile.can_access_vendors %}<span class="badge badge-info">Vendors</span>{% endif %}
-                            {% if account.profile.is_manager or account.profile.can_access_finance %}<span class="badge badge-info">Finance</span>{% endif %}
-                            {% if account.profile.is_manager or account.profile.can_manage_accounts %}<span class="badge badge-warning">Accounts</span>{% endif %}
+                            {% if account.profile.is_manager %}
+                            <span class="badge badge-success">All businesses</span>
+                            <span class="badge badge-warning">Full access</span>
+                            {% elif row.access_summary %}
+                                {% for summary in row.access_summary %}
+                                <span class="badge badge-info">{{ summary.business }}: {% if summary.permissions %}{{ summary.permissions|join:", " }}{% else %}Assigned{% endif %}</span>
+                                {% endfor %}
+                            {% else %}
+                            <span style="font-size: 0.78rem; color: var(--text-muted);">No business access</span>
+                            {% endif %}
                         </div>
                     </td>
                     <td style="padding: 16px 18px;">
@@ -54,23 +59,57 @@
                             {% if account.is_active %}Active{% else %}Disabled{% endif %}
                         </span>
                     </td>
-                    <td style="padding: 16px 18px; text-align: right;">
+                    <td style="padding: 16px 18px;">
+                        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap;">
                         <button class="btn btn-secondary btn-sm" onclick="openEditUserModal(this)"
                                 data-id="{{ account.id }}"
                                 data-username="{{ account.username|escapejs }}"
                                 data-email="{{ account.email|escapejs }}"
                                 data-first-name="{{ account.first_name|escapejs }}"
                                 data-last-name="{{ account.last_name|escapejs }}"
+                                data-job-title="{{ account.profile.job_title|escapejs }}"
+                                data-office="{{ account.profile.office|escapejs }}"
+                                data-phone-number="{{ account.profile.phone_number|escapejs }}"
+                                data-mobile-number="{{ account.profile.mobile_number|escapejs }}"
+                                data-address-line1="{{ account.profile.address_line1|escapejs }}"
+                                data-address-line2="{{ account.profile.address_line2|escapejs }}"
+                                data-city="{{ account.profile.city|escapejs }}"
+                                data-state="{{ account.profile.state|escapejs }}"
+                                data-postal-code="{{ account.profile.postal_code|escapejs }}"
+                                data-country="{{ account.profile.country|escapejs }}"
+                                data-emergency-contact-name="{{ account.profile.emergency_contact_name|escapejs }}"
+                                data-emergency-contact-phone="{{ account.profile.emergency_contact_phone|escapejs }}"
+                                data-team="{{ account.profile.team|escapejs }}"
+                                data-supervisor="{{ account.profile.supervisor_id|default:'' }}"
                                 data-role="{{ account.profile.role }}"
                                 data-active="{% if account.is_active %}true{% else %}false{% endif %}"
-                                data-projects="{% if account.profile.can_access_projects %}true{% else %}false{% endif %}"
-                                data-documents="{% if account.profile.can_access_documents %}true{% else %}false{% endif %}"
-                                data-vendors="{% if account.profile.can_access_vendors %}true{% else %}false{% endif %}"
-                                data-finance="{% if account.profile.can_access_finance %}true{% else %}false{% endif %}"
-                                data-accounts="{% if account.profile.can_manage_accounts %}true{% else %}false{% endif %}"
                                 data-memberships="{{ row.membership_data }}">
                             <i class="fa-regular fa-pen-to-square"></i> Edit
                         </button>
+                        {% if account != request.user %}
+                            {% if account.is_active %}
+                            <form method="POST" action="{% url 'accounts:user_deactivate' account.id %}" style="margin: 0;" onsubmit="return confirm('Deactivate this user? They will no longer be able to log in, but their account record will stay available.');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-secondary btn-sm">
+                                    <i class="fa-solid fa-user-slash"></i> Deactivate
+                                </button>
+                            </form>
+                            {% else %}
+                            <form method="POST" action="{% url 'accounts:user_activate' account.id %}" style="margin: 0;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-secondary btn-sm">
+                                    <i class="fa-solid fa-user-check"></i> Reactivate
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{% url 'accounts:user_delete' account.id %}" style="margin: 0;" onsubmit="return confirm('Delete this user permanently? Anything created on the system by this user will be deleted with the user and may be available with a backup upon request, but not guaranteed.');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-sm">
+                                    <i class="fa-solid fa-trash"></i> Delete
+                                </button>
+                            </form>
+                        {% endif %}
+                        </div>
                     </td>
                 </tr>
                 {% endwith %}
@@ -85,12 +124,12 @@
 </div>
 
 <div class="modal-overlay" id="createUserModal">
-    <div class="modal-content" style="max-width: 560px;">
+    <div class="modal-content" style="max-width: 760px; max-height: 90vh; overflow-y: auto;">
         <div class="modal-header">
             <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-user-plus" style="color: var(--primary); margin-right: 8px;"></i> Create Account</h3>
             <span class="modal-close" onclick="closeCreateUserModal()">&times;</span>
         </div>
-        <form action="{% url 'accounts:user_create' %}" method="POST">
+        <form action="{% url 'accounts:user_create' %}" method="POST" enctype="multipart/form-data">
             {% csrf_token %}
             {% include 'accounts/user_form_fields.html' with prefix='create' is_create=True %}
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
@@ -102,12 +141,12 @@
 </div>
 
 <div class="modal-overlay" id="editUserModal">
-    <div class="modal-content" style="max-width: 560px;">
+    <div class="modal-content" style="max-width: 760px; max-height: 90vh; overflow-y: auto;">
         <div class="modal-header">
             <h3 class="card-title" style="font-size: 1.25rem;"><i class="fa-solid fa-user-gear" style="color: var(--primary); margin-right: 8px;"></i> Edit Account</h3>
             <span class="modal-close" onclick="closeEditUserModal()">&times;</span>
         </div>
-        <form id="editUserForm" method="POST" action="">
+        <form id="editUserForm" method="POST" action="" enctype="multipart/form-data">
             {% csrf_token %}
             {% include 'accounts/user_form_fields.html' with prefix='edit' is_create=False %}
             <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
@@ -129,9 +168,18 @@
     function togglePermissionPanel(prefix) {
         const role = document.getElementById(`${prefix}Role`).value;
         const panel = document.getElementById(`${prefix}PermissionPanel`);
-        panel.style.opacity = role === 'MANAGER' ? '0.45' : '1';
-        panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            if (cb.name !== 'is_active') cb.disabled = role === 'MANAGER';
+        if (panel) {
+            panel.style.opacity = role === 'MANAGER' ? '0.45' : '1';
+            panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                if (cb.name !== 'is_active') cb.disabled = role === 'MANAGER';
+            });
+        }
+        document.querySelectorAll(`.${prefix}-manager-access-option`).forEach(option => {
+            const visible = role === 'MANAGER';
+            option.style.display = visible ? '' : 'none';
+            if (!visible) {
+                option.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            }
         });
     }
 
@@ -155,14 +203,24 @@
         document.getElementById('editEmail').value = button.dataset.email;
         document.getElementById('editFirstName').value = button.dataset.firstName;
         document.getElementById('editLastName').value = button.dataset.lastName;
+        document.getElementById('editJobTitle').value = button.dataset.jobTitle;
+        document.getElementById('editOffice').value = button.dataset.office;
+        document.getElementById('editPhoneNumber').value = button.dataset.phoneNumber;
+        document.getElementById('editMobileNumber').value = button.dataset.mobileNumber;
+        document.getElementById('editAddressLine1').value = button.dataset.addressLine1;
+        document.getElementById('editAddressLine2').value = button.dataset.addressLine2;
+        document.getElementById('editCity').value = button.dataset.city;
+        document.getElementById('editState').value = button.dataset.state;
+        document.getElementById('editPostalCode').value = button.dataset.postalCode;
+        document.getElementById('editCountry').value = button.dataset.country || 'United States';
+        document.getElementById('editEmergencyContactName').value = button.dataset.emergencyContactName;
+        document.getElementById('editEmergencyContactPhone').value = button.dataset.emergencyContactPhone;
+        document.getElementById('editTeam').value = button.dataset.team;
+        document.getElementById('editSupervisor').value = button.dataset.supervisor || '';
         document.getElementById('editRole').value = button.dataset.role;
         document.getElementById('editPassword').value = '';
+        document.getElementById('editPhoto').value = '';
         setCheckbox('editIsActive', button.dataset.active);
-        setCheckbox('editProjects', button.dataset.projects);
-        setCheckbox('editDocuments', button.dataset.documents);
-        setCheckbox('editVendors', button.dataset.vendors);
-        setCheckbox('editFinance', button.dataset.finance);
-        setCheckbox('editAccounts', button.dataset.accounts);
         document.querySelectorAll('.edit-business-assignment').forEach(cb => cb.checked = false);
         document.querySelectorAll('.edit-business-permission').forEach(cb => cb.checked = false);
         (button.dataset.memberships || '').split(';').filter(Boolean).forEach(record => {
@@ -172,8 +230,9 @@
             setCheckbox(`editBusiness${businessId}Projects`, parts[1] === '1');
             setCheckbox(`editBusiness${businessId}Documents`, parts[2] === '1');
             setCheckbox(`editBusiness${businessId}Vendors`, parts[3] === '1');
-            setCheckbox(`editBusiness${businessId}Finance`, parts[4] === '1');
-            setCheckbox(`editBusiness${businessId}Accounts`, parts[5] === '1');
+            setCheckbox(`editBusiness${businessId}Clients`, parts[4] === '1');
+            setCheckbox(`editBusiness${businessId}Finance`, parts[5] === '1');
+            setCheckbox(`editBusiness${businessId}Accounts`, parts[6] === '1');
         });
         togglePermissionPanel('edit');
         const modal = document.getElementById('editUserModal');

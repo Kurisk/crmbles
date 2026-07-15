@@ -116,6 +116,7 @@
                 <tr style="border-bottom: 1px solid var(--border-color); cursor: pointer; transition: background-color var(--transition-fast); font-size: 0.85rem;" 
                     onclick="openEditInvoiceModal(this)"
                     data-id="{{ inv.id }}"
+                    data-client-id="{% if inv.client %}{{ inv.client.id }}{% endif %}"
                     data-client="{{ inv.client_name }}"
                     data-title="{{ inv.title }}"
                     data-project="{% if inv.project %}{{ inv.project.id }}{% endif %}"
@@ -349,6 +350,16 @@
                     <label for="invClient" class="form-label">Client Name *</label>
                     <input type="text" class="form-control" id="invClient" name="client_name" required placeholder="e.g. Acme Corp, Jane Smith" autocomplete="off" style="font-size: 0.85rem;">
                 </div>
+
+                <div class="form-group">
+                    <label for="invClientRecord" class="form-label">Link to Client Record</label>
+                    <select class="form-control" id="invClientRecord" name="client" onchange="applyClientNameFromSelect(this, 'invClient')" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional: Choose Client --</option>
+                        {% for client in all_clients %}
+                        <option value="{{ client.id }}" data-name="{{ client.name|escape }}">{{ client.name }}{% if client.company %} - {{ client.company }}{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 
                 <div class="form-group">
                     <label for="invTitle" class="form-label">Invoice Title / Purpose *</label>
@@ -442,6 +453,16 @@
                 <div class="form-group">
                     <label for="editInvClient" class="form-label">Client Name *</label>
                     <input type="text" class="form-control" id="editInvClient" name="client_name" required placeholder="e.g. Acme Corp, Jane Smith" autocomplete="off" style="font-size: 0.85rem;">
+                </div>
+
+                <div class="form-group">
+                    <label for="editInvClientRecord" class="form-label">Link to Client Record</label>
+                    <select class="form-control" id="editInvClientRecord" name="client" onchange="applyClientNameFromSelect(this, 'editInvClient')" style="font-size: 0.85rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Optional: Choose Client --</option>
+                        {% for client in all_clients %}
+                        <option value="{{ client.id }}" data-name="{{ client.name|escape }}">{{ client.name }}{% if client.company %} - {{ client.company }}{% endif %}</option>
+                        {% endfor %}
+                    </select>
                 </div>
                 
                 <div class="form-group">
@@ -1288,11 +1309,23 @@
     }
 
     // Modal Triggers: Add Invoice
-    function openNewInvoiceModal(vendorId = '') {
+    function applyClientNameFromSelect(selectEl, inputId) {
+        const selected = selectEl.options[selectEl.selectedIndex];
+        const input = document.getElementById(inputId);
+        if (selected && selected.dataset.name && input) {
+            input.value = selected.dataset.name;
+        }
+    }
+
+    function openNewInvoiceModal(vendorId = '', clientId = '') {
         const modal = document.getElementById('newInvoiceModal');
         const form = modal.querySelector('form');
         if (form) form.reset();
         document.getElementById('invVendor').value = vendorId || '';
+        document.getElementById('invClientRecord').value = clientId || '';
+        if (clientId) {
+            applyClientNameFromSelect(document.getElementById('invClientRecord'), 'invClient');
+        }
         clearLineItemRows('invLineItems', 'inv');
         modal.style.display = 'flex';
         setTimeout(() => modal.classList.add('active'), 10);
@@ -1306,6 +1339,7 @@
     // Modal Triggers: Edit Invoice
     function openEditInvoiceModal(row) {
         const id = row.dataset.id;
+        const clientId = row.dataset.clientId;
         const client = row.dataset.client;
         const title = row.dataset.title;
         const project = row.dataset.project;
@@ -1321,6 +1355,7 @@
         document.getElementById('deleteInvoiceForm').action = `/finance/invoice/${id}/delete/`;
 
         document.getElementById('editInvClient').value = client;
+        document.getElementById('editInvClientRecord').value = clientId;
         document.getElementById('editInvTitle').value = title;
         document.getElementById('editInvAmount').value = amount;
         document.getElementById('editInvDate').value = date;
@@ -1562,7 +1597,7 @@
         }
 
         if (hash === '#new-invoice') {
-            openNewInvoiceModal(params.get('vendor') || '');
+            openNewInvoiceModal(params.get('vendor') || '', params.get('client') || '');
         } else if (hash === '#new-expense') {
             switchFinanceTab('expenses');
             openNewExpenseModal(params.get('vendor') || '');

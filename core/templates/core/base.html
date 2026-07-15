@@ -53,13 +53,14 @@
                     </a>
                 </li>
                 {% endif %}
-                <!-- Future Modular Extensions -->
-                <li class="sidebar-item" style="opacity: 0.45; cursor: not-allowed;" title="Coming Soon: Clients Module">
-                    <a href="#" onclick="return false;">
+                {% if feature_access.clients %}
+                <li class="sidebar-item {% if 'clients' in request.resolver_match.app_name %}active{% endif %}">
+                    <a href="{% url 'clients:client_list' %}">
                         <i class="fa-solid fa-users"></i>
-                        <span>Clients (Soon)</span>
+                        <span>Clients</span>
                     </a>
                 </li>
+                {% endif %}
                 {% if feature_access.finance %}
                 <li class="sidebar-item {% if 'finance' in request.resolver_match.app_name %}active{% endif %}">
                     <a href="{% url 'finance:dashboard' %}">
@@ -69,7 +70,7 @@
                 </li>
                 {% endif %}
                 {% if feature_access.manage_accounts %}
-                <li class="sidebar-item {% if 'accounts' in request.resolver_match.app_name %}active{% endif %}">
+                <li class="sidebar-item {% if request.resolver_match.view_name == 'accounts:user_list' %}active{% endif %}">
                     <a href="{% url 'accounts:user_list' %}">
                         <i class="fa-solid fa-user-gear"></i>
                         <span>Account Manager</span>
@@ -84,13 +85,28 @@
                     </li>
                 {% endif %}
                 {% endif %}
+                <li class="sidebar-item {% if request.resolver_match.view_name == 'core:faq' %}active{% endif %}">
+                    <a href="{% url 'core:faq' %}">
+                        <i class="fa-solid fa-circle-question"></i>
+                        <span>FAQ & Contact</span>
+                    </a>
+                </li>
             </ul>
             
             <!-- Sidebar User Profile Footer -->
             <div class="sidebar-footer">
+                {% if request.user.profile.photo %}
+                <img class="user-avatar" src="{{ request.user.profile.photo.url }}" alt="" style="object-fit: cover;">
+                {% else %}
                 <div class="user-avatar">{{ request.user.username|first|upper }}</div>
+                {% endif %}
                 <div class="user-info">
-                    <span class="user-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+                    <div class="user-name-row">
+                        <a class="user-name" href="{% url 'accounts:profile' %}">{{ request.user.get_full_name|default:request.user.username }}</a>
+                        <a class="user-profile-link" href="{% url 'accounts:profile' %}" title="My profile" aria-label="My profile">
+                            <i class="fa-regular fa-id-card"></i>
+                        </a>
+                    </div>
                     <span class="user-role">{{ request.user.profile.get_role_display }} &middot; <a href="{% url 'accounts:logout' %}" style="color: var(--primary);">Logout</a></span>
                 </div>
             </div>
@@ -140,6 +156,7 @@
                 <!-- Child templates inject their core page structures here -->
                 {% endblock %}
             </main>
+            {% include 'core/partials/site_footer.html' %}
         </div>
     </div>
 
@@ -153,6 +170,19 @@
             // Subtle micro-interaction: Log loading performance or state transitions
             console.log('CRMbles workspace initialized successfully.');
         });
+
+        function togglePasswordVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            button.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+            const icon = button.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('fa-eye', !isHidden);
+                icon.classList.toggle('fa-eye-slash', isHidden);
+            }
+        }
     </script>
     {% block extra_js %}{% endblock %}
 </body>

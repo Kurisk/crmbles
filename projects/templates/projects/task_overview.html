@@ -1,0 +1,164 @@
+{% extends 'core/base.html' %}
+
+{% block title %}{{ page_title }} | CRMbles{% endblock %}
+
+{% block header_title %}{{ page_title }}{% endblock %}
+{% block header_subtitle %}
+{% if list_filter %}
+Showing {{ task_status }} tasks from {{ list_filter.project.name }} / {{ list_filter.name }}.
+{% else %}
+Tasks grouped by their project board and original list column.
+{% endif %}
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'projects:project_list' %}" class="btn btn-secondary">
+    <i class="fa-solid fa-folder-tree"></i> All Boards
+</a>
+{% if list_filter %}
+<a href="{% url 'projects:task_overview' task_status %}" class="btn btn-secondary">
+    <i class="fa-solid fa-layer-group"></i> All {{ task_status|title }}
+</a>
+{% endif %}
+{% if task_status == 'pending' %}
+<a href="{% url 'projects:task_overview' 'completed' %}" class="btn btn-primary">
+    <i class="fa-solid fa-clipboard-check"></i> Completed
+</a>
+{% else %}
+<a href="{% url 'projects:task_overview' 'pending' %}" class="btn btn-primary">
+    <i class="fa-solid fa-list-check"></i> Pending
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if grouped_projects %}
+<div style="display: flex; flex-direction: column; gap: 24px;">
+    {% for group in grouped_projects %}
+    <section class="card" data-project-task-group style="padding: 0; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; border-bottom: 1px solid var(--border-color); background-color: rgba(15, 21, 36, 0.55);">
+            <div>
+                <h2 class="card-title" style="font-size: 1.05rem; margin-bottom: 2px;">
+                    <i class="fa-solid fa-folder-open" style="color: var(--primary); margin-right: 8px;"></i>
+                    {{ group.project.name }}
+                </h2>
+                <span style="font-size: 0.78rem; color: var(--text-muted);">{{ group.tasks|length }} task{{ group.tasks|length|pluralize }}</span>
+            </div>
+            <a href="{% url 'projects:project_detail' group.project.id %}{% if task_status == 'pending' %}#list{% endif %}" class="btn btn-secondary btn-sm">
+                <i class="fa-solid fa-table-columns"></i> Open Board
+            </a>
+        </div>
+
+        <div style="display: flex; flex-direction: column;">
+            {% for task in group.tasks %}
+            <div class="overview-task-row" data-task-row data-task-id="{{ task.id }}" style="display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 16px 22px; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                <form action="{% url 'projects:task_pin' task.id %}" method="POST" style="margin: 0;">
+                    {% csrf_token %}
+                    <input type="hidden" name="pin" value="{% if task.is_pinned %}0{% else %}1{% endif %}">
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn pin-button {% if task.is_pinned %}is-pinned{% endif %}" title="{% if task.is_pinned %}Unpin task{% else %}Pin task{% endif %}" aria-label="{% if task.is_pinned %}Unpin{% else %}Pin{% endif %} {{ task.title }}">
+                        <i class="{% if task.is_pinned %}fa-solid{% else %}fa-regular{% endif %} fa-star"></i>
+                    </button>
+                </form>
+                <input type="checkbox" class="task-toggle-checkbox"
+                       data-task-id="{{ task.id }}"
+                       {% if task.status == 'DONE' %}checked{% endif %}
+                       onchange="toggleOverviewTaskStatus(this)">
+                <div style="min-width: 0;">
+                    <div id="task-text-{{ task.id }}" class="{% if task.status == 'DONE' %}completed-item{% endif %}" style="font-weight: 700; line-height: 1.4;">
+                        {{ task.title }}
+                    </div>
+                    {% if task.description %}
+                    <p style="color: var(--text-secondary); font-size: 0.82rem; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                        {{ task.description }}
+                    </p>
+                    {% endif %}
+                    <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted);">
+                        <span><i class="fa-solid fa-list-ul" style="margin-right: 4px;"></i>{{ task.list.name }}</span>
+                        {% if task.due_date %}
+                        <span><i class="fa-regular fa-calendar-days" style="margin-right: 4px;"></i>{{ task.due_date|date:"M d, Y" }}</span>
+                        {% else %}
+                        <span><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i>No date</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+                    <span class="badge {% if task.status == 'DONE' %}badge-success{% elif task.status == 'PROGRESS' %}badge-warning{% else %}badge-info{% endif %}">
+                        {% if task.status == 'DONE' %}Done{% elif task.status == 'PROGRESS' %}In Progress{% else %}To Do{% endif %}
+                    </span>
+                    <span class="badge {% if task.priority == 'HIGH' %}badge-danger{% elif task.priority == 'MEDIUM' %}badge-warning{% else %}badge-info{% endif %}">
+                        {{ task.priority }}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 72px 40px; color: var(--text-muted);">
+    <i class="fa-solid {% if task_status == 'completed' %}fa-clipboard-check{% else %}fa-list-check{% endif %}" style="font-size: 3rem; margin-bottom: 18px; display: block;"></i>
+    <h3 style="font-family: var(--font-heading); color: var(--text-primary); margin-bottom: 10px; font-size: 1.3rem;">{{ empty_message }}</h3>
+    <a href="{% url 'projects:project_list' %}" class="btn btn-primary" style="margin-top: 12px;">
+        <i class="fa-solid fa-folder-tree"></i> View Project Boards
+    </a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function removeEmptyGroups() {
+        document.querySelectorAll('[data-project-task-group]').forEach(group => {
+            if (!group.querySelector('[data-task-row]')) {
+                group.remove();
+            }
+        });
+    }
+
+    function toggleOverviewTaskStatus(checkbox) {
+        const taskId = checkbox.dataset.taskId;
+        const row = checkbox.closest('[data-task-row]');
+        const taskText = document.getElementById(`task-text-${taskId}`);
+        const isChecked = checkbox.checked;
+
+        if (taskText) {
+            taskText.classList.toggle('completed-item', isChecked);
+        }
+
+        fetch(`/projects/tasks/${taskId}/toggle/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                'status': isChecked ? 'DONE' : 'TODO'
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                checkbox.checked = !isChecked;
+                if (taskText) taskText.classList.toggle('completed-item', checkbox.checked);
+                alert('Error updating task status.');
+                return;
+            }
+
+            if (row) {
+                row.style.opacity = '0';
+                row.style.transform = 'translateY(-4px)';
+                setTimeout(() => {
+                    row.remove();
+                    removeEmptyGroups();
+                }, 180);
+            }
+        })
+        .catch(err => {
+            checkbox.checked = !isChecked;
+            if (taskText) taskText.classList.toggle('completed-item', checkbox.checked);
+            console.error('AJAX Error:', err);
+        });
+    }
+</script>
+{% endblock %}

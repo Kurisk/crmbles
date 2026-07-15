@@ -1,0 +1,568 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Clients | CRMbles{% endblock %}
+
+{% block header_title %}Client Directory{% endblock %}
+{% block header_subtitle %}Track leads, active clients, contacts, opportunities, and invoice-ready notes.{% endblock %}
+
+{% block header_actions %}
+<button class="btn btn-primary" onclick="openClientModal('create')">
+    <i class="fa-solid fa-plus-circle"></i> Add Client
+</button>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .client-card {
+        min-height: 150px;
+        transition: border-color var(--transition-fast), box-shadow var(--transition-fast), transform var(--transition-fast);
+    }
+    .client-card-detail {
+        display: block;
+    }
+    body.client-density-compact .client-card {
+        padding: 16px !important;
+    }
+    body.client-density-compact .client-card-detail {
+        display: none !important;
+    }
+    body.client-density-expanded .client-card-detail {
+        display: block !important;
+    }
+    .client-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="metrics-grid" style="margin-bottom: 24px;">
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--primary-glow); color: var(--primary); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-users"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ total_clients }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Total Clients</span>
+        </div>
+    </div>
+
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--warning-bg); color: var(--warning); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-user-plus"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ lead_clients }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Leads</span>
+        </div>
+    </div>
+
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--success-bg); color: var(--success); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-handshake"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ active_clients }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Active</span>
+        </div>
+    </div>
+
+    <div class="card metric-card card-hover" style="padding: 16px 20px;">
+        <div class="metric-icon-box" style="background-color: var(--info-bg); color: var(--info); width: 38px; height: 38px; font-size: 1rem; border-radius: 8px;">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+        </div>
+        <div class="metric-data">
+            <span class="metric-value" style="font-size: 1.25rem;">{{ past_clients }}</span>
+            <span class="metric-label" style="font-size: 0.75rem;">Past</span>
+        </div>
+    </div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 28px;">
+    <form action="" method="GET" style="display: flex; gap: 12px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm);">
+        <input type="text" class="form-control" name="q" value="{{ q }}" placeholder="Search clients by name, company, contact, notes, phone, or email..." autocomplete="off" style="flex-grow: 1; padding: 8px 14px; margin-bottom: 0;">
+        <button type="submit" class="btn btn-secondary" style="padding: 8px 18px;">
+            <i class="fa-solid fa-magnifying-glass"></i> Search
+        </button>
+        {% if q %}
+        <a href="{% url 'clients:client_list' %}" class="btn btn-danger btn-sm" style="padding: 8px 16px; font-size: 0.85rem; display: flex; align-items: center;">
+            Clear Search
+        </a>
+        {% endif %}
+    </form>
+
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; background-color: rgba(15, 21, 36, 0.35); border: 1px solid var(--border-color); padding: 12px 20px; border-radius: var(--radius-sm); backdrop-filter: var(--glass-blur);">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-filter" style="color: var(--primary);"></i> Filter Tags:
+            </span>
+            <div id="filterTagContainer" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                {% for tag in active_tags %}
+                <button class="btn-filter-tag" data-tag-id="{{ tag.id }}" onclick="toggleTagFilter({{ tag.id }})" style="background-color: transparent; border: 1px solid {{ tag.color }}40; color: var(--text-secondary); font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all var(--transition-fast); display: flex; align-items: center; gap: 5px;">
+                    <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                    {{ tag.name }}
+                </button>
+                {% empty %}
+                <span style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">Assigned client tags will appear here.</span>
+                {% endfor %}
+                <button id="btnClearFilter" onclick="clearTagFilters()" style="display: none; background: transparent; border: none; color: var(--danger); font-size: 0.72rem; font-weight: 700; cursor: pointer; text-decoration: underline; padding-left: 4px;">
+                    Clear Filter
+                </button>
+            </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="openTagModal()" style="font-size: 0.72rem; padding: 5px 12px; background-color: transparent; border-color: rgba(255,255,255,0.08);">
+            <i class="fa-solid fa-tags" style="color: var(--success); font-size: 0.8rem;"></i> Manage Tags
+        </button>
+    </div>
+</div>
+
+<div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+    <button class="btn btn-secondary btn-sm" id="btnClientDensityToggle" onclick="toggleClientDensity()" title="Switch between compact and expanded client cards">
+        <i class="fa-solid fa-compress" id="clientDensityIcon"></i>
+        <span id="clientDensityLabel">Compact View</span>
+    </button>
+</div>
+
+<div class="dashboard-grid" id="clientDirectoryGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 24px;">
+    {% for client in clients %}
+    <div class="card card-hover client-card" id="client-card-{{ client.id }}"
+         style="display: flex; flex-direction: column; justify-content: space-between; cursor: pointer; position: relative;"
+         data-id="{{ client.id }}"
+         data-name="{{ client.name }}"
+         data-company="{{ client.company }}"
+         data-contact="{{ client.contact_name }}"
+         data-website="{{ client.website }}"
+         data-email="{{ client.email }}"
+         data-phone="{{ client.phone }}"
+         data-status="{{ client.status }}"
+         data-source="{{ client.source }}"
+         data-notes="{{ client.notes }}"
+         data-tags="[{% for tag in client.tags.all %}{{ tag.id }}{% if not forloop.last %},{% endif %}{% endfor %}]"
+         data-opportunities='[{% for opp in client.opportunities.all %}{"name":"{{ opp.name|escapejs }}","desc":"{{ opp.description|escapejs }}","estimate":"{% if opp.estimate %}{{ opp.estimate }}{% endif %}","status":"{{ opp.status }}","notes":"{{ opp.notes|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+         onclick="viewClientDetails(this)">
+        <div>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px;">
+                <div>
+                    <h3 class="card-title" style="font-size: 1.1rem; color: var(--text-primary); margin-bottom: 4px;">
+                        <i class="fa-solid fa-user-group" style="color: var(--primary); margin-right: 6px;"></i> {{ client.name }}
+                    </h3>
+                    {% if client.company %}
+                    <div style="font-size: 0.8rem; color: var(--text-muted); font-style: italic;">{{ client.company }}</div>
+                    {% endif %}
+                </div>
+                <span class="badge {% if client.status == 'ACTIVE' %}badge-success{% elif client.status == 'LEAD' %}badge-warning{% elif client.status == 'PAST' %}badge-info{% else %}badge-danger{% endif %}" style="font-size: 0.68rem; padding: 2px 10px;">
+                    {{ client.get_status_display }}
+                </span>
+            </div>
+
+            <div class="client-card-detail" style="display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.03); padding-bottom: 12px;">
+                {% if client.contact_name %}
+                <span><i class="fa-regular fa-id-badge" style="width: 16px;"></i> {{ client.contact_name }}</span>
+                {% endif %}
+                {% if client.website %}
+                <a href="{{ client.website }}" target="_blank" onclick="event.stopPropagation()" style="display: flex; align-items: center; gap: 6px; color: var(--info);">
+                    <i class="fa-solid fa-globe" style="width: 14px;"></i> {{ client.website }}
+                </a>
+                {% endif %}
+                {% if client.email %}
+                <span><i class="fa-regular fa-envelope" style="width: 16px;"></i> {{ client.email }}</span>
+                {% endif %}
+                {% if client.phone %}
+                <span><i class="fa-solid fa-phone" style="width: 16px;"></i> {{ client.phone }}</span>
+                {% endif %}
+                {% if client.source %}
+                <span><i class="fa-solid fa-route" style="width: 16px;"></i> {{ client.source }}</span>
+                {% endif %}
+            </div>
+
+            {% if client.tags.all %}
+            <div class="client-card-detail" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px;">
+                {% for tag in client.tags.all %}
+                <span style="background-color: {{ tag.color }}20; color: {{ tag.color }}; border: 1px solid {{ tag.color }}40; font-size: 0.72rem; padding: 3px 8px; border-radius: 6px; font-weight: 600;">{{ tag.name }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if client.notes %}
+            <div class="client-card-detail" style="margin-bottom: 16px;">
+                <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Notes</label>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">{{ client.notes }}</p>
+            </div>
+            {% endif %}
+
+            {% if client.opportunities.all %}
+            <div class="client-card-detail" style="margin-bottom: 16px; border-top: 1px solid rgba(255, 255, 255, 0.03); padding-top: 12px;">
+                <label style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 4px; margin-bottom: 8px;">
+                    <i class="fa-solid fa-bullseye" style="color: var(--success); font-size: 0.75rem;"></i> Opportunities
+                </label>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    {% for opp in client.opportunities.all %}
+                    <div style="display: flex; justify-content: space-between; gap: 10px; background-color: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; padding: 8px 10px; font-size: 0.78rem;">
+                        <span style="font-weight: 600; color: var(--text-primary);">{{ opp.name }}</span>
+                        <span style="color: var(--success); font-weight: 700;">{% if opp.estimate %}${{ opp.estimate|floatformat:2 }}{% else %}-{% endif %}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px; margin-top: 12px;" onclick="event.stopPropagation()">
+            <form action="{% url 'clients:client_pin' client.id %}" method="POST" style="margin: 0;">
+                {% csrf_token %}
+                <input type="hidden" name="pin" value="{% if client.is_pinned %}0{% else %}1{% endif %}">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn pin-button {% if client.is_pinned %}is-pinned{% endif %}" title="{% if client.is_pinned %}Unpin client{% else %}Pin client{% endif %}" aria-label="{% if client.is_pinned %}Unpin{% else %}Pin{% endif %} {{ client.name }}">
+                    <i class="{% if client.is_pinned %}fa-solid{% else %}fa-regular{% endif %} fa-star"></i>
+                </button>
+            </form>
+            <a href="{% url 'finance:dashboard' %}?client={{ client.id }}#new-invoice" class="btn btn-primary btn-sm" style="font-size: 0.75rem; padding: 6px 12px;">
+                <i class="fa-solid fa-file-invoice-dollar"></i> Create Invoice
+            </a>
+        </div>
+    </div>
+    {% empty %}
+    <div style="grid-column: 1 / -1; text-align: center; padding: 60px 0; color: var(--text-muted);">
+        <i class="fa-solid fa-user-plus" style="font-size: 3rem; margin-bottom: 14px; display: block; opacity: 0.45;"></i>
+        <h4 style="font-size: 1.05rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px;">No Clients Found</h4>
+        <span style="font-size: 0.82rem;">Add your first lead or customer record to start building the client side of the CRM.</span>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="modal-overlay" id="clientModal">
+    <div class="modal-content" style="max-width: 760px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="modal-header" style="flex-shrink: 0;">
+            <h3 class="card-title" id="clientModalTitle" style="font-size: 1.25rem;"><i class="fa-solid fa-users" style="color: var(--primary); margin-right: 8px;"></i> Add Client</h3>
+            <span class="modal-close" onclick="closeClientModal()">&times;</span>
+        </div>
+        <form id="clientForm" action="{% url 'clients:client_create' %}" method="POST" style="display: flex; flex-direction: column; overflow: hidden; flex-grow: 1;">
+            {% csrf_token %}
+            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 8px; margin-bottom: 8px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="clientName" class="form-label">Client Name *</label>
+                        <input type="text" class="form-control" id="clientName" name="name" required placeholder="e.g. Acme Corp, Jane Smith" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientStatus" class="form-label">Status</label>
+                        <select class="form-control" id="clientStatus" name="status" style="background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                            {% for code, label in client_statuses %}
+                            <option value="{{ code }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="clientCompany" class="form-label">Company</label>
+                        <input type="text" class="form-control" id="clientCompany" name="company" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientContact" class="form-label">Primary Contact</label>
+                        <input type="text" class="form-control" id="clientContact" name="contact_name" autocomplete="off">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="clientEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="clientEmail" name="email" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientPhone" class="form-label">Phone</label>
+                        <input type="text" class="form-control" id="clientPhone" name="phone" autocomplete="off">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label for="clientWebsite" class="form-label">Website</label>
+                        <input type="url" class="form-control" id="clientWebsite" name="website" placeholder="https://">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientSource" class="form-label">Source</label>
+                        <input type="text" class="form-control" id="clientSource" name="source" placeholder="Referral, website, cold outreach">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="clientTagSelect" class="form-label">Tags</label>
+                    <select class="form-control" id="clientTagSelect" onchange="addTagFromDropdown(this)" style="background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+                        <option value="">-- Add tag --</option>
+                        {% for tag in all_tags %}
+                        <option value="{{ tag.id }}" data-color="{{ tag.color }}">{{ tag.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div id="clientActiveTags" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="clientNotes" class="form-label">Notes</label>
+                    <textarea class="form-control" id="clientNotes" name="notes" rows="4" placeholder="Relationship context, preferences, promises made, follow-up notes..."></textarea>
+                </div>
+
+                <div style="border-top: 1px solid var(--border-color); padding-top: 16px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px;">
+                        <label class="form-label" style="margin-bottom: 0;">Opportunities / Services</label>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addOpportunityRow()" style="font-size: 0.72rem; padding: 4px 10px;">
+                            <i class="fa-solid fa-plus"></i> Add Row
+                        </button>
+                    </div>
+                    <div id="clientOpportunities" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 16px; flex-shrink: 0; margin-top: auto;">
+                <button type="button" class="btn btn-secondary" id="deleteClientButton" onclick="triggerDeleteClient()" style="display: none; background-color: transparent; border-color: var(--danger-bg); color: var(--danger);">
+                    <i class="fa-regular fa-trash-can"></i> Delete Client
+                </button>
+                <div style="display: flex; gap: 12px; margin-left: auto;">
+                    <button type="button" class="btn btn-secondary" onclick="closeClientModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="clientSubmitButton">Save Client</button>
+                </div>
+            </div>
+        </form>
+        <form id="deleteClientForm" action="" method="POST" style="display: none;">{% csrf_token %}</form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="manageTagsModal">
+    <div class="modal-content" style="max-width: 460px;">
+        <div class="modal-header">
+            <h3 class="card-title" style="font-size: 1.15rem;"><i class="fa-solid fa-tags" style="color: var(--success); margin-right: 8px;"></i> Create Client Tag</h3>
+            <span class="modal-close" onclick="closeTagModal()">&times;</span>
+        </div>
+        <form action="{% url 'clients:client_tag_create' %}" method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label class="form-label" for="newTagName">Tag Name</label>
+                <input type="text" class="form-control" id="newTagName" name="name" required placeholder="Prospect type, market, priority">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="newTagColor">Color</label>
+                <input type="text" class="form-control" id="newTagColor" name="color" value="#0ea5e9" pattern="^#[0-9A-Fa-f]{6}$">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                <button type="button" class="btn btn-secondary" onclick="closeTagModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Tag</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ client_statuses|json_script:"client-statuses-data" }}
+{{ opportunity_statuses|json_script:"opportunity-statuses-data" }}
+<script>
+    const clientStatusLabels = Object.fromEntries(JSON.parse(document.getElementById('client-statuses-data').textContent));
+    const opportunityStatuses = JSON.parse(document.getElementById('opportunity-statuses-data').textContent);
+    let currentClientId = null;
+    let activeFilterTags = new Set();
+    let clientDensityMode = 'expanded';
+    const clientDensityStorageKey = 'crmbles.clientDensity.user.{{ request.user.id|default:"anonymous" }}';
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value || '';
+        return div.innerHTML;
+    }
+
+    function opportunityStatusOptions(selected = 'OPEN') {
+        return opportunityStatuses.map(([code, label]) => `<option value="${code}" ${code === selected ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('');
+    }
+
+    function createOpportunityRowHtml(name = '', desc = '', estimate = '', status = 'OPEN', notes = '') {
+        return `
+        <div class="opportunity-row" style="position: relative; background-color: rgba(0,0,0,0.12); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px;">
+            <button type="button" onclick="this.closest('.opportunity-row').remove()" style="position: absolute; top: 8px; right: 8px; background: transparent; border: none; color: var(--danger); cursor: pointer;" aria-label="Remove opportunity">&times;</button>
+            <div style="display: grid; grid-template-columns: 1.4fr 0.8fr 0.8fr; gap: 10px; padding-right: 24px;">
+                <input type="text" class="form-control" name="opportunity_name[]" value="${escapeHtml(name)}" placeholder="Service / opportunity" style="font-size: 0.8rem; margin-bottom: 0;">
+                <input type="number" step="0.01" min="0" class="form-control" name="opportunity_estimate[]" value="${escapeHtml(estimate)}" placeholder="Estimate" style="font-size: 0.8rem; margin-bottom: 0;">
+                <select class="form-control" name="opportunity_status[]" style="font-size: 0.8rem; background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary); margin-bottom: 0;">${opportunityStatusOptions(status)}</select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-right: 24px; margin-top: 10px;">
+                <input type="text" class="form-control" name="opportunity_desc[]" value="${escapeHtml(desc)}" placeholder="Description" style="font-size: 0.8rem; margin-bottom: 0;">
+                <input type="text" class="form-control" name="opportunity_notes[]" value="${escapeHtml(notes)}" placeholder="Internal notes" style="font-size: 0.8rem; margin-bottom: 0;">
+            </div>
+        </div>`;
+    }
+
+    function addOpportunityRow(name = '', desc = '', estimate = '', status = 'OPEN', notes = '') {
+        const container = document.getElementById('clientOpportunities');
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = createOpportunityRowHtml(name, desc, estimate, status, notes).trim();
+        container.appendChild(wrapper.firstChild);
+    }
+
+    function addTagBadge(tagId, tagName, color) {
+        const container = document.getElementById('clientActiveTags');
+        if (container.querySelector(`[data-tag-id="${tagId}"]`)) return;
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `
+        <span class="badge-tag-editable" data-tag-id="${tagId}" style="background-color: ${color}20; color: ${color}; border: 1px solid ${color}40; font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; margin: 4px 0;">
+            <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background-color: ${color};"></span>
+            ${escapeHtml(tagName)}
+            <input type="checkbox" name="tags" value="${tagId}" checked style="display: none;">
+            <span onclick="this.closest('.badge-tag-editable').remove()" style="cursor: pointer; font-size: 0.95rem; font-weight: 700; color: ${color}; opacity: 0.7; margin-left: 2px;">&times;</span>
+        </span>`.trim();
+        container.appendChild(wrapper.firstChild);
+    }
+
+    function addTagFromDropdown(selectEl) {
+        const tagId = selectEl.value;
+        if (!tagId) return;
+        const option = selectEl.options[selectEl.selectedIndex];
+        addTagBadge(tagId, option.text, option.dataset.color || '#0ea5e9');
+        selectEl.value = '';
+    }
+
+    function openClientModal(mode, card = null) {
+        const modal = document.getElementById('clientModal');
+        const form = document.getElementById('clientForm');
+        form.reset();
+        document.getElementById('clientActiveTags').innerHTML = '';
+        document.getElementById('clientOpportunities').innerHTML = '';
+        currentClientId = null;
+        document.getElementById('deleteClientButton').style.display = 'none';
+        document.getElementById('clientModalTitle').innerHTML = '<i class="fa-solid fa-users" style="color: var(--primary); margin-right: 8px;"></i> Add Client';
+        document.getElementById('clientSubmitButton').textContent = 'Save Client';
+        form.action = "{% url 'clients:client_create' %}";
+
+        if (mode === 'edit' && card) {
+            currentClientId = card.dataset.id;
+            form.action = `/clients/${currentClientId}/update/`;
+            document.getElementById('deleteClientForm').action = `/clients/${currentClientId}/delete/`;
+            document.getElementById('deleteClientButton').style.display = 'inline-flex';
+            document.getElementById('clientModalTitle').innerHTML = '<i class="fa-solid fa-users" style="color: var(--primary); margin-right: 8px;"></i> Client Workspace';
+            document.getElementById('clientSubmitButton').textContent = 'Save Changes';
+            document.getElementById('clientName').value = card.dataset.name || '';
+            document.getElementById('clientCompany').value = card.dataset.company || '';
+            document.getElementById('clientContact').value = card.dataset.contact || '';
+            document.getElementById('clientWebsite').value = card.dataset.website || '';
+            document.getElementById('clientEmail').value = card.dataset.email || '';
+            document.getElementById('clientPhone').value = card.dataset.phone || '';
+            document.getElementById('clientStatus').value = card.dataset.status || 'LEAD';
+            document.getElementById('clientSource').value = card.dataset.source || '';
+            document.getElementById('clientNotes').value = card.dataset.notes || '';
+
+            const selectEl = document.getElementById('clientTagSelect');
+            JSON.parse(card.dataset.tags || '[]').forEach(tagId => {
+                const option = Array.from(selectEl.options).find(opt => opt.value === String(tagId));
+                if (option) addTagBadge(tagId, option.text, option.dataset.color || '#0ea5e9');
+            });
+            JSON.parse(card.dataset.opportunities || '[]').forEach(opp => addOpportunityRow(opp.name, opp.desc, opp.estimate, opp.status, opp.notes));
+        }
+
+        if (!document.getElementById('clientOpportunities').children.length) {
+            addOpportunityRow();
+        }
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function viewClientDetails(card) {
+        openClientModal('edit', card);
+    }
+
+    function closeClientModal() {
+        const modal = document.getElementById('clientModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function triggerDeleteClient() {
+        const form = document.getElementById('deleteClientForm');
+        if (form && confirm('Permanently remove this client from your directory?')) {
+            form.submit();
+        }
+    }
+
+    function openTagModal() {
+        const modal = document.getElementById('manageTagsModal');
+        modal.style.display = 'flex';
+        setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function closeTagModal() {
+        const modal = document.getElementById('manageTagsModal');
+        modal.classList.remove('active');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+    function toggleTagFilter(tagId) {
+        const button = document.querySelector(`.btn-filter-tag[data-tag-id="${tagId}"]`);
+        const color = button.querySelector('span').style.backgroundColor;
+        if (activeFilterTags.has(tagId)) {
+            activeFilterTags.delete(tagId);
+            button.style.backgroundColor = 'transparent';
+            button.style.borderColor = color + '40';
+            button.style.color = 'var(--text-secondary)';
+            button.style.boxShadow = 'none';
+        } else {
+            activeFilterTags.add(tagId);
+            button.style.backgroundColor = color + '20';
+            button.style.borderColor = color;
+            button.style.color = 'var(--text-primary)';
+            button.style.boxShadow = `0 0 10px ${color}25`;
+        }
+        applyTagFilters();
+    }
+
+    function applyTagFilters() {
+        const hasFilters = activeFilterTags.size > 0;
+        document.getElementById('btnClearFilter').style.display = hasFilters ? 'inline-block' : 'none';
+        document.querySelectorAll('.client-card').forEach(card => {
+            if (!hasFilters) {
+                card.style.display = 'flex';
+                return;
+            }
+            const cardTags = JSON.parse(card.dataset.tags || '[]');
+            card.style.display = cardTags.some(tagId => activeFilterTags.has(tagId)) ? 'flex' : 'none';
+        });
+    }
+
+    function clearTagFilters() {
+        activeFilterTags.clear();
+        document.querySelectorAll('.btn-filter-tag').forEach(button => {
+            const color = button.querySelector('span').style.backgroundColor;
+            button.style.backgroundColor = 'transparent';
+            button.style.borderColor = color + '40';
+            button.style.color = 'var(--text-secondary)';
+            button.style.boxShadow = 'none';
+        });
+        applyTagFilters();
+    }
+
+    function setClientDensity(mode, persist = true) {
+        clientDensityMode = mode;
+        document.body.classList.remove('client-density-compact', 'client-density-expanded');
+        document.body.classList.add(`client-density-${mode}`);
+        document.getElementById('clientDensityLabel').textContent = mode === 'expanded' ? 'Compact View' : 'Expanded View';
+        document.getElementById('clientDensityIcon').className = mode === 'expanded' ? 'fa-solid fa-compress' : 'fa-solid fa-expand';
+        if (persist) {
+            try {
+                localStorage.setItem(clientDensityStorageKey, mode);
+            } catch (err) {}
+        }
+    }
+
+    function toggleClientDensity() {
+        setClientDensity(clientDensityMode === 'expanded' ? 'compact' : 'expanded');
+    }
+
+    window.addEventListener('click', (event) => {
+        if (event.target === document.getElementById('clientModal')) closeClientModal();
+        if (event.target === document.getElementById('manageTagsModal')) closeTagModal();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        let saved = 'expanded';
+        try {
+            saved = localStorage.getItem(clientDensityStorageKey) || 'expanded';
+        } catch (err) {}
+        setClientDensity(['compact', 'expanded'].includes(saved) ? saved : 'expanded', false);
+    });
+</script>
+{% endblock %}

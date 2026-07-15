@@ -9,7 +9,6 @@
     </div>
 </div>
 
-{% if not is_create %}
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
     <div class="form-group">
         <label class="form-label" for="{{ prefix }}FirstName">First Name</label>
@@ -20,12 +19,16 @@
         <input class="form-control" id="{{ prefix }}LastName" name="last_name" type="text" autocomplete="off">
     </div>
 </div>
-{% endif %}
 
 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
     <div class="form-group">
         <label class="form-label" for="{{ prefix }}Password">{% if is_create %}Password *{% else %}New Password{% endif %}</label>
-        <input class="form-control" id="{{ prefix }}Password" name="password" type="password" {% if is_create %}required{% endif %} autocomplete="new-password" placeholder="{% if is_create %}Required{% else %}Leave blank to keep current{% endif %}">
+        <div class="password-field">
+            <input class="form-control" id="{{ prefix }}Password" name="password" type="password" {% if is_create %}required{% endif %} autocomplete="new-password" placeholder="{% if is_create %}Required{% else %}Leave blank to keep current{% endif %}">
+            <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('{{ prefix }}Password', this)">
+                <i class="fa-regular fa-eye"></i>
+            </button>
+        </div>
     </div>
     <div class="form-group">
         <label class="form-label" for="{{ prefix }}Role">Role</label>
@@ -37,6 +40,91 @@
     </div>
 </div>
 
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Photo">Profile Photo</label>
+        <input class="form-control" id="{{ prefix }}Photo" name="photo" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}JobTitle">Job Title</label>
+        <input class="form-control" id="{{ prefix }}JobTitle" name="job_title" type="text" autocomplete="off">
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Office">Office</label>
+        <input class="form-control" id="{{ prefix }}Office" name="office" type="text" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}PhoneNumber">Phone Number</label>
+        <input class="form-control" id="{{ prefix }}PhoneNumber" name="phone_number" type="tel" autocomplete="off">
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}MobileNumber">Mobile Number</label>
+        <input class="form-control" id="{{ prefix }}MobileNumber" name="mobile_number" type="tel" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Team">Team</label>
+        <input class="form-control" id="{{ prefix }}Team" name="team" type="text" autocomplete="off">
+    </div>
+</div>
+
+<div class="form-group">
+    <label class="form-label" for="{{ prefix }}Supervisor">Supervisor</label>
+    <select class="form-control" id="{{ prefix }}Supervisor" name="supervisor" style="background-color: var(--bg-sidebar); border-color: var(--border-color); color: var(--text-primary);">
+        <option value="">No supervisor</option>
+        {% for supervisor in supervisor_options %}
+        <option value="{{ supervisor.id }}">{{ supervisor.get_full_name|default:supervisor.username }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}AddressLine1">Address Line 1</label>
+        <input class="form-control" id="{{ prefix }}AddressLine1" name="address_line1" type="text" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}AddressLine2">Address Line 2</label>
+        <input class="form-control" id="{{ prefix }}AddressLine2" name="address_line2" type="text" autocomplete="off">
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}City">City</label>
+        <input class="form-control" id="{{ prefix }}City" name="city" type="text" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}State">State</label>
+        <input class="form-control" id="{{ prefix }}State" name="state" type="text" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}PostalCode">Postal Code</label>
+        <input class="form-control" id="{{ prefix }}PostalCode" name="postal_code" type="text" autocomplete="off">
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}Country">Country</label>
+        <input class="form-control" id="{{ prefix }}Country" name="country" type="text" value="United States" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label class="form-label" for="{{ prefix }}EmergencyContactName">Emergency Contact</label>
+        <input class="form-control" id="{{ prefix }}EmergencyContactName" name="emergency_contact_name" type="text" autocomplete="off">
+    </div>
+</div>
+
+<div class="form-group">
+    <label class="form-label" for="{{ prefix }}EmergencyContactPhone">Emergency Contact Phone</label>
+    <input class="form-control" id="{{ prefix }}EmergencyContactPhone" name="emergency_contact_phone" type="tel" autocomplete="off">
+</div>
+
 <label class="tag-selector-pill" style="cursor: pointer; display: block; margin-bottom: 18px;">
     <input id="{{ prefix }}IsActive" type="checkbox" name="is_active" checked style="display: none;">
     <span style="display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border-color); color: var(--text-secondary); padding: 10px 14px; border-radius: var(--radius-sm); font-weight: 700; font-size: 0.82rem;">
@@ -44,19 +132,11 @@
     </span>
 </label>
 
-<div id="{{ prefix }}PermissionPanel" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; background-color: var(--bg-sidebar);">
-    <label class="form-label" style="margin-bottom: 12px; display: block;">Feature Permissions</label>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Projects" type="checkbox" name="can_access_projects" style="margin-right: 8px;"> Projects & To-Dos</label>
-        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Documents" type="checkbox" name="can_access_documents" style="margin-right: 8px;"> Documents & Notes</label>
-        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Vendors" type="checkbox" name="can_access_vendors" style="margin-right: 8px;"> Vendors & Suppliers</label>
-        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Finance" type="checkbox" name="can_access_finance" style="margin-right: 8px;"> Finance & Invoicing</label>
-        <label style="font-size: 0.85rem; color: var(--text-secondary);"><input id="{{ prefix }}Accounts" type="checkbox" name="can_manage_accounts" style="margin-right: 8px;"> Account Manager</label>
-    </div>
-</div>
-
 <div style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 16px; background-color: rgba(15, 21, 36, 0.6); margin-top: 16px;">
-    <label class="form-label" style="margin-bottom: 12px; display: block;">Business Assignments</label>
+    <label class="form-label" style="margin-bottom: 12px; display: block;">Business Access</label>
+    <p style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; margin: -4px 0 14px;">
+        Add this person to one or more businesses, then choose what they can access inside each business. Only Managers can manage Businesses or Accounts.
+    </p>
     {% if businesses %}
     <div style="display: flex; flex-direction: column; gap: 12px;">
         {% for business in businesses %}
@@ -65,12 +145,13 @@
                 <input id="{{ prefix }}Business{{ business.id }}" class="{{ prefix }}-business-assignment" type="checkbox" name="businesses" value="{{ business.id }}">
                 {{ business }}
             </label>
-            <div style="display: grid; grid-template-columns: repeat(5, minmax(90px, 1fr)); gap: 8px; font-size: 0.76rem; color: var(--text-secondary);">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; font-size: 0.76rem; color: var(--text-secondary);">
                 <label><input id="{{ prefix }}Business{{ business.id }}Projects" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_projects"> Projects</label>
                 <label><input id="{{ prefix }}Business{{ business.id }}Documents" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_documents"> Documents</label>
                 <label><input id="{{ prefix }}Business{{ business.id }}Vendors" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_vendors"> Vendors</label>
+                <label><input id="{{ prefix }}Business{{ business.id }}Clients" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_clients"> Clients</label>
                 <label><input id="{{ prefix }}Business{{ business.id }}Finance" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_finance"> Finance</label>
-                <label><input id="{{ prefix }}Business{{ business.id }}Accounts" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_accounts"> Accounts</label>
+                <label class="{{ prefix }}-manager-access-option" style="display: none;"><input id="{{ prefix }}Business{{ business.id }}Accounts" class="{{ prefix }}-business-permission" type="checkbox" name="business_{{ business.id }}_accounts"> Accounts</label>
             </div>
         </div>
         {% endfor %}

@@ -6,18 +6,23 @@
 {% block header_subtitle %}Overview of your CRMbles workspace and operations.{% endblock %}
 
 {% block header_actions %}
+{% if feature_access.documents %}
 <a href="{% url 'documents:document_create' %}" class="btn btn-secondary">
     <i class="fa-solid fa-plus-circle"></i> New Note
 </a>
+{% endif %}
+{% if feature_access.projects %}
 <a href="{% url 'projects:project_list' %}" class="btn btn-primary">
     <i class="fa-solid fa-circle-plus"></i> Go to Board
 </a>
+{% endif %}
 {% endblock %}
 
 {% block content %}
 <!-- Metrics Summary Grid -->
 <div class="metrics-grid">
-    <div class="card metric-card card-hover">
+    {% if feature_access.projects %}
+    <a href="{% url 'projects:project_list' %}" class="card metric-card card-hover" style="text-decoration: none;">
         <div class="metric-icon-box" style="background-color: var(--primary-glow); color: var(--primary);">
             <i class="fa-solid fa-diagram-project"></i>
         </div>
@@ -25,9 +30,9 @@
             <span class="metric-value">{{ total_projects }}</span>
             <span class="metric-label">Active Projects</span>
         </div>
-    </div>
+    </a>
     
-    <div class="card metric-card card-hover">
+    <a href="{% url 'projects:task_overview' 'pending' %}" class="card metric-card card-hover" style="text-decoration: none;">
         <div class="metric-icon-box" style="background-color: var(--danger-bg); color: var(--danger);">
             <i class="fa-solid fa-list-check"></i>
         </div>
@@ -35,9 +40,9 @@
             <span class="metric-value">{{ pending_tasks_count }}</span>
             <span class="metric-label">Pending Tasks</span>
         </div>
-    </div>
+    </a>
 
-    <div class="card metric-card card-hover">
+    <a href="{% url 'projects:task_overview' 'completed' %}" class="card metric-card card-hover" style="text-decoration: none;">
         <div class="metric-icon-box" style="background-color: var(--success-bg); color: var(--success);">
             <i class="fa-solid fa-clipboard-check"></i>
         </div>
@@ -45,9 +50,11 @@
             <span class="metric-value">{{ completed_tasks_count }}</span>
             <span class="metric-label">Completed Tasks</span>
         </div>
-    </div>
+    </a>
+    {% endif %}
 
-    <div class="card metric-card card-hover">
+    {% if feature_access.documents %}
+    <a href="{% url 'documents:document_list' %}" class="card metric-card card-hover" style="text-decoration: none;">
         <div class="metric-icon-box" style="background-color: var(--info-bg); color: var(--info);">
             <i class="fa-solid fa-file-invoice"></i>
         </div>
@@ -55,8 +62,10 @@
             <span class="metric-value">{{ total_documents }}</span>
             <span class="metric-label">Saved Documents</span>
         </div>
-    </div>
+    </a>
+    {% endif %}
 
+    {% if feature_access.finance %}
     <a href="{% url 'finance:dashboard' %}#invoices" class="card metric-card card-hover" style="text-decoration: none;">
         <div class="metric-icon-box" style="background-color: var(--warning-bg); color: var(--warning);">
             <i class="fa-solid fa-file-circle-exclamation"></i>
@@ -76,14 +85,17 @@
             <span class="metric-label">Pending Expenses</span>
         </div>
     </a>
+    {% endif %}
 </div>
 
+{% if feature_access.projects or feature_access.documents %}
 <!-- Main Dashboard Layout split -->
-<div class="dashboard-grid">
+<div class="dashboard-grid" {% if not feature_access.projects or not feature_access.documents %}style="grid-template-columns: 1fr;"{% endif %}>
+    {% if feature_access.projects %}
     <!-- Left Column: Active Projects & Actions -->
     <div class="dashboard-left">
         <!-- CRMbles Workspace Overview Card -->
-        <div class="card card-hover">
+        <div class="card card-hover" id="workspace-overview">
             <div class="card-header">
                 <span class="card-title"><i class="fa-solid fa-network-wired" style="color: var(--primary); margin-right: 8px;"></i> CRMbles Workspace</span>
                 <span class="badge badge-success">Active & Healthy</span>
@@ -93,7 +105,7 @@
                 This workspace contains your planning resources, checklists, design requirements, and reference notes in one CRMbles command center.
             </p>
             
-            <div style="background-color: var(--bg-sidebar); padding: 20px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+            <div id="task-progress" style="scroll-margin-top: 96px; background-color: var(--bg-sidebar); padding: 20px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
                 <div>
                     <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 4px;">Task Progress Checklist</h4>
                     <span style="font-size: 0.8rem; color: var(--text-muted);">Completeness: {{ completed_tasks_count }} of {{ total_tasks }} tasks</span>
@@ -105,10 +117,10 @@
         </div>
 
         <!-- Recent Tasks Checklist -->
-        <div class="card">
+        <div class="card" id="urgent-tasks" style="scroll-margin-top: 96px;">
             <div class="card-header">
                 <span class="card-title"><i class="fa-solid fa-circle-exclamation" style="color: var(--danger); margin-right: 8px;"></i> Urgent Tasks to Tackle</span>
-                <a href="{% url 'projects:project_list' %}" style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">View All Tasks &rarr;</a>
+                <a href="{% url 'projects:task_overview' 'pending' %}" style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">View Pending &rarr;</a>
             </div>
             
             {% if recent_tasks %}
@@ -146,11 +158,13 @@
             {% endif %}
         </div>
     </div>
+    {% endif %}
 
+    {% if feature_access.documents %}
     <!-- Right Column: Documents and Notes -->
     <div class="dashboard-right">
         <!-- Recent Notes Card -->
-        <div class="card" style="height: 100%; display: flex; flex-direction: column;">
+        <div class="card" id="recent-notes" style="height: 100%; display: flex; flex-direction: column; scroll-margin-top: 96px;">
             <div class="card-header">
                 <span class="card-title"><i class="fa-solid fa-file-pen" style="color: var(--info); margin-right: 8px;"></i> Recent Ideas & Notes</span>
                 <a href="{% url 'documents:document_list' %}" style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">All Notes &rarr;</a>
@@ -180,10 +194,19 @@
             {% endif %}
         </div>
     </div>
+    {% endif %}
 </div>
+{% else %}
+<div class="card" style="text-align: center; padding: 48px 24px;">
+    <i class="fa-solid fa-lock" style="font-size: 2rem; color: var(--text-muted); margin-bottom: 16px;"></i>
+    <h3 class="card-title" style="justify-content: center;">No Dashboard Sections Assigned</h3>
+    <p style="color: var(--text-secondary); margin: 0;">Ask an account manager to add business access for the areas you need.</p>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block extra_js %}
+{% if feature_access.projects %}
 <script>
     // AJAX to toggle task status dynamically from dashboard
     function toggleTaskStatus(checkbox) {
@@ -226,4 +249,5 @@
         });
     }
 </script>
+{% endif %}
 {% endblock %}

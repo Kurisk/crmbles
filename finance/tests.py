@@ -3,6 +3,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from accounts.models import Business
+from clients.models import Client
 from vendors.models import Vendor
 from .models import Expense, ExpenseCategory, IndustryExpenseItem, Invoice
 
@@ -138,3 +139,27 @@ class ExpenseVendorDefaultTests(TestCase):
         invoice = Invoice.objects.get(title="Travel reimbursement")
         self.assertEqual(invoice.amount, 340)
         self.assertEqual(invoice.line_items.count(), 4)
+
+    def test_invoice_can_link_to_client_record(self):
+        client = Client.objects.create(
+            business=self.business,
+            name="Acme Corp",
+            company="Acme Holdings",
+        )
+
+        response = self.client.post(
+            reverse("finance:invoice_create"),
+            {
+                "client": str(client.pk),
+                "client_name": "Old typed name",
+                "title": "Monthly retainer",
+                "amount": "500.00",
+                "invoice_date": "2026-07-08",
+                "status": "SENT",
+            },
+        )
+
+        self.assertRedirects(response, reverse("finance:dashboard"))
+        invoice = Invoice.objects.get(title="Monthly retainer")
+        self.assertEqual(invoice.client, client)
+        self.assertEqual(invoice.client_name, client.name)

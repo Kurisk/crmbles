@@ -39,6 +39,7 @@ class Invoice(models.Model):
         ('OVERDUE', 'Overdue'),
     ]
     business = models.ForeignKey('accounts.Business', related_name='invoices', on_delete=models.CASCADE, null=True, blank=True)
+    client = models.ForeignKey('clients.Client', null=True, blank=True, on_delete=models.SET_NULL, related_name='invoices')
     client_name = models.CharField(max_length=150)
     title = models.CharField(max_length=200, help_text="e.g. Custom Sticker Design, Consulting")
     project = models.ForeignKey('projects.Project', null=True, blank=True, on_delete=models.SET_NULL, related_name='invoices')

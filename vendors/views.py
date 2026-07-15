@@ -2,6 +2,8 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.db.models import Q
+from django.urls import reverse
+from core.pinning import apply_pin_state, safe_redirect_target
 from finance.models import ExpenseCategory, IndustryExpenseItem
 from .models import Vendor, VendorTag, VendorService
 
@@ -10,7 +12,7 @@ def vendor_list(request):
     Renders the central Vendor Directory. Supporting prefetch caching,
     search parameters, and workspace-level stats metrics.
     """
-    vendors = Vendor.objects.filter(business=request.business).prefetch_related('tags', 'services')
+    vendors = Vendor.objects.filter(business=request.business).prefetch_related('tags', 'services').order_by('-is_pinned', '-pinned_at', 'name')
     all_tags = VendorTag.objects.filter(business=request.business)
     all_categories = ExpenseCategory.objects.filter(business=request.business)
     industry_items = IndustryExpenseItem.objects.filter(business=request.business, is_active=True).select_related('category')
@@ -175,6 +177,13 @@ def vendor_delete(request, vendor_id):
     vendor.delete()
     messages.success(request, f"Vendor '{name}' deleted successfully.")
     return redirect('vendors:vendor_list')
+
+
+@require_POST
+def vendor_pin(request, vendor_id):
+    vendor = get_object_or_404(Vendor, pk=vendor_id, business=request.business)
+    apply_pin_state(vendor, request.POST.get('pin') == '1')
+    return redirect(safe_redirect_target(request, reverse('vendors:vendor_list')))
 
 
 @require_POST

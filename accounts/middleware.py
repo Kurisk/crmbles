@@ -12,6 +12,7 @@ class CRMAccessMiddleware:
         "/projects/": "projects",
         "/documents/": "documents",
         "/vendors/": "vendors",
+        "/clients/": "clients",
         "/finance/": "finance",
     }
 
@@ -20,6 +21,8 @@ class CRMAccessMiddleware:
         "/accounts/logout/",
         "/accounts/setup/",
         "/accounts/signup/",
+        "/faq/",
+        "/latest-update/",
         "/static/",
         "/media/",
         "/admin/",
@@ -46,9 +49,9 @@ class CRMAccessMiddleware:
             request.business, request.businesses = selected_business_for_request(request)
             membership = membership_for(request.user, request.business)
 
-            if request.business is None and not path.startswith("/accounts/businesses/") and profile.can_access("manage_accounts"):
+            if request.business is None and not path.startswith("/accounts/businesses/") and profile.is_manager:
                 return redirect("accounts:business_list")
-            can_manage_accounts = profile.is_manager or (membership and membership.can_access("manage_accounts")) or (request.business is None and profile.can_access("manage_accounts"))
+            can_manage_accounts = profile.is_manager
             if path.startswith("/accounts/users/") and not can_manage_accounts:
                 messages.error(request, "You do not have permission to manage accounts.")
                 return redirect("core:dashboard")

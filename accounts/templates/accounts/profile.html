@@ -1,0 +1,127 @@
+{% extends 'core/base.html' %}
+
+{% block title %}My Profile | CRMbles{% endblock %}
+{% block header_title %}My Profile{% endblock %}
+{% block header_subtitle %}Update your contact details and profile photo.{% endblock %}
+
+{% block header_actions %}
+<a class="btn btn-secondary" href="{% url 'accounts:password_change' %}">
+    <i class="fa-solid fa-key"></i> Change Password
+</a>
+{% endblock %}
+
+{% block content %}
+<form method="POST" enctype="multipart/form-data" class="card" style="max-width: 980px;">
+    {% csrf_token %}
+    <div style="display: flex; align-items: center; gap: 18px; margin-bottom: 24px;">
+        {% if request.user.profile.photo %}
+        <img class="profile-photo" src="{{ request.user.profile.photo.url }}" alt="">
+        {% else %}
+        <div class="user-avatar" style="width: 82px; height: 82px; font-size: 1.6rem;">{{ request.user.username|first|upper }}</div>
+        {% endif %}
+        <div>
+            <h3 class="card-title" style="margin-bottom: 4px;">{{ request.user.get_full_name|default:request.user.username }}</h3>
+            <div style="font-size: 0.82rem; color: var(--text-muted);">{{ request.user.username }} &middot; {{ request.user.profile.get_role_display }}</div>
+        </div>
+    </div>
+
+    <div class="card" style="box-shadow: none; background-color: rgba(15, 21, 36, 0.55); margin-bottom: 24px;">
+        <h3 class="card-title" style="font-size: 1rem; margin-bottom: 16px;">Managed by Account Manager</h3>
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 14px; font-size: 0.84rem;">
+            <div>
+                <div style="color: var(--text-muted);">Username</div>
+                <strong>{{ request.user.username }}</strong>
+            </div>
+            <div>
+                <div style="color: var(--text-muted);">Role</div>
+                <strong>{{ request.user.profile.get_role_display }}</strong>
+            </div>
+            <div>
+                <div style="color: var(--text-muted);">Supervisor</div>
+                <strong>
+                    {% if request.user.profile.supervisor %}
+                    {{ request.user.profile.supervisor.get_full_name|default:request.user.profile.supervisor.username }}
+                    {% else %}
+                    None
+                    {% endif %}
+                </strong>
+            </div>
+            <div>
+                <div style="color: var(--text-muted);">Team</div>
+                <strong>{{ request.user.profile.team|default:"None" }}</strong>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px;">
+        <div class="form-group">
+            <label class="form-label" for="first_name">First Name</label>
+            <input class="form-control" id="first_name" name="first_name" type="text" value="{{ request.user.first_name }}" autocomplete="given-name">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="last_name">Last Name</label>
+            <input class="form-control" id="last_name" name="last_name" type="text" value="{{ request.user.last_name }}" autocomplete="family-name">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="email">Email</label>
+            <input class="form-control" id="email" name="email" type="email" value="{{ request.user.email }}" autocomplete="email">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="photo">Profile Photo</label>
+            <input class="form-control" id="photo" name="photo" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="job_title">Job Title</label>
+            <input class="form-control" id="job_title" name="job_title" type="text" value="{{ request.user.profile.job_title }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="office">Office</label>
+            <input class="form-control" id="office" name="office" type="text" value="{{ request.user.profile.office }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="phone_number">Phone Number</label>
+            <input class="form-control" id="phone_number" name="phone_number" type="tel" value="{{ request.user.profile.phone_number }}" autocomplete="tel">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="mobile_number">Mobile Number</label>
+            <input class="form-control" id="mobile_number" name="mobile_number" type="tel" value="{{ request.user.profile.mobile_number }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="address_line1">Address Line 1</label>
+            <input class="form-control" id="address_line1" name="address_line1" type="text" value="{{ request.user.profile.address_line1 }}" autocomplete="address-line1">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="address_line2">Address Line 2</label>
+            <input class="form-control" id="address_line2" name="address_line2" type="text" value="{{ request.user.profile.address_line2 }}" autocomplete="address-line2">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="city">City</label>
+            <input class="form-control" id="city" name="city" type="text" value="{{ request.user.profile.city }}" autocomplete="address-level2">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="state">State</label>
+            <input class="form-control" id="state" name="state" type="text" value="{{ request.user.profile.state }}" autocomplete="address-level1">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="postal_code">Postal Code</label>
+            <input class="form-control" id="postal_code" name="postal_code" type="text" value="{{ request.user.profile.postal_code }}" autocomplete="postal-code">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="country">Country</label>
+            <input class="form-control" id="country" name="country" type="text" value="{{ request.user.profile.country }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="emergency_contact_name">Emergency Contact</label>
+            <input class="form-control" id="emergency_contact_name" name="emergency_contact_name" type="text" value="{{ request.user.profile.emergency_contact_name }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="emergency_contact_phone">Emergency Contact Phone</label>
+            <input class="form-control" id="emergency_contact_phone" name="emergency_contact_phone" type="tel" value="{{ request.user.profile.emergency_contact_phone }}">
+        </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Profile</button>
+    </div>
+</form>
+{% endblock %}

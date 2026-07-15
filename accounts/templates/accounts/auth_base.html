@@ -9,8 +9,8 @@
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
-    <main style="min-height: 100vh; width: 100%; display: flex; align-items: center; justify-content: center; padding: 32px; background-color: var(--bg-main);">
-        <div class="card" style="width: 100%; max-width: 440px; padding: 32px;">
+    <main style="min-height: calc(100vh - 74px); width: 100%; display: flex; align-items: center; justify-content: center; padding: 32px; background-color: var(--bg-main);">
+        <div class="card" style="width: 100%; max-width: 560px; padding: 32px;">
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
                 <div class="logo-icon" style="margin-right: 0;">C</div>
                 <div>
@@ -32,5 +32,21 @@
             {% block content %}{% endblock %}
         </div>
     </main>
+    {% include 'core/partials/site_footer.html' %}
+    <script>
+        function togglePasswordVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            button.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+            const icon = button.querySelector('i');
+            if (icon) {
+                icon.classList.toggle('fa-eye', !isHidden);
+                icon.classList.toggle('fa-eye-slash', isHidden);
+            }
+        }
+    </script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

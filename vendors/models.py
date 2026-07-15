@@ -32,11 +32,13 @@ class Vendor(models.Model):
     notes = models.TextField(blank=True, help_text="Research summaries and details.")
     has_purchased = models.BooleanField(default=False, help_text="Have I ever purchased from them?")
     tags = models.ManyToManyField(VendorTag, blank=True, related_name='vendors')
+    is_pinned = models.BooleanField(default=False)
+    pinned_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['name']
+        ordering = ['-is_pinned', '-pinned_at', 'name']
 
     def __str__(self):
         return self.name

@@ -47,9 +47,25 @@
                 </div>
                 
                 <div style="display: flex; gap: 12px;">
+                    <form action="{% url 'projects:project_pin' stat.project.id %}" method="POST" style="margin: 0;">
+                        {% csrf_token %}
+                        <input type="hidden" name="pin" value="{% if stat.project.is_pinned %}0{% else %}1{% endif %}">
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="btn pin-button {% if stat.project.is_pinned %}is-pinned{% endif %}" title="{% if stat.project.is_pinned %}Unpin project board{% else %}Pin project board{% endif %}" aria-label="{% if stat.project.is_pinned %}Unpin{% else %}Pin{% endif %} {{ stat.project.name }}">
+                            <i class="{% if stat.project.is_pinned %}fa-solid{% else %}fa-regular{% endif %} fa-star"></i>
+                        </button>
+                    </form>
                     <a href="{% url 'projects:project_detail' stat.project.id %}" class="btn btn-secondary btn-sm" style="flex-grow: 1;">
                         <i class="fa-solid fa-table-columns"></i> Open Board
                     </a>
+                    {% if request.user.profile.is_manager %}
+                    <form action="{% url 'projects:project_delete' stat.project.id %}" method="POST" onsubmit="return confirm('Delete this project board and all of its lists and tasks?');" style="margin: 0;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger btn-sm" title="Delete project board" aria-label="Delete {{ stat.project.name }} project board">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
             </div>
         </div>

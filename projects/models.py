@@ -14,6 +14,8 @@ class Project(models.Model):
     business = models.ForeignKey('accounts.Business', related_name='projects', on_delete=models.CASCADE, null=True, blank=True)
     description = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='ACTIVE')
+    is_pinned = models.BooleanField(default=False)
+    pinned_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -75,11 +77,13 @@ class Task(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='TODO')
     due_date = models.DateField(null=True, blank=True)
     tags = models.ManyToManyField('Tag', blank=True, related_name='tasks')
+    is_pinned = models.BooleanField(default=False)
+    pinned_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['due_date', 'created_at']
+        ordering = ['-is_pinned', '-pinned_at', 'due_date', 'created_at']
 
     def __str__(self):
         return self.title

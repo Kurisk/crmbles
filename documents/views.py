@@ -5,6 +5,8 @@ from django.utils.safestring import mark_safe
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.urls import reverse
+from core.pinning import apply_pin_state, safe_redirect_target
 from .models import Document
 from projects.models import Project
 
@@ -12,7 +14,7 @@ def document_list(request):
     """
     Renders all saved wiki articles, design documents, and ideas.
     """
-    documents = Document.objects.filter(business=request.business).order_by('-updated_at')
+    documents = Document.objects.filter(business=request.business).order_by('-is_pinned', '-pinned_at', '-updated_at')
     return render(request, 'documents/document_list.html', {'documents': documents})
 
 
@@ -128,6 +130,13 @@ def document_delete(request, pk):
         document.delete()
         messages.success(request, f"Document '{title}' deleted successfully.")
     return redirect('documents:document_list')
+
+
+@require_POST
+def document_pin(request, pk):
+    document = get_object_or_404(Document, pk=pk, business=request.business)
+    apply_pin_state(document, request.POST.get('pin') == '1')
+    return redirect(safe_redirect_target(request, reverse('documents:document_list')))
 
 
 @require_POST

@@ -1,0 +1,13 @@
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <div class="site-footer-brand">
+            <span class="site-footer-mark">C</span>
+            <span>CRMbles v{{ app_version }}</span>
+        </div>
+        <nav class="site-footer-links" aria-label="Product links">
+            <a href="{% url 'core:faq' %}">FAQ</a>
+            <a href="mailto:{{ support_email }}?subject=CRMbles%20Access%20Request">Contact</a>
+            <a href="{% url 'core:latest_update' %}">Latest Update</a>
+        </nav>
+    </div>
+</footer>

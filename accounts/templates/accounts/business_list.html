@@ -31,6 +31,14 @@
             {% if business.email %}<div><i class="fa-regular fa-envelope" style="width: 16px;"></i> {{ business.email }}</div>{% endif %}
         </div>
         <div style="display: flex; justify-content: space-between; gap: 10px; margin-top: auto;">
+            <form action="{% url 'accounts:business_pin' business.id %}" method="POST" style="margin: 0;">
+                {% csrf_token %}
+                <input type="hidden" name="pin" value="{% if business.is_pinned %}0{% else %}1{% endif %}">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn pin-button {% if business.is_pinned %}is-pinned{% endif %}" title="{% if business.is_pinned %}Unpin business{% else %}Pin business{% endif %}" aria-label="{% if business.is_pinned %}Unpin{% else %}Pin{% endif %} {{ business }}">
+                    <i class="{% if business.is_pinned %}fa-solid{% else %}fa-regular{% endif %} fa-star"></i>
+                </button>
+            </form>
             <form action="{% url 'accounts:business_switch' business.id %}" method="POST" style="margin: 0;">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{% url 'core:dashboard' %}">

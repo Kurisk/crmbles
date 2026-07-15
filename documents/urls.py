@@ -9,5 +9,6 @@ urlpatterns = [
     path('create/', views.document_create, name='document_create'),
     path('<int:pk>/update/', views.document_update, name='document_update'),
     path('<int:pk>/delete/', views.document_delete, name='document_delete'),
+    path('<int:pk>/pin/', views.document_pin, name='document_pin'),
     path('<int:pk>/toggle-checklist/', views.document_checklist_toggle, name='document_checklist_toggle'),
 ]

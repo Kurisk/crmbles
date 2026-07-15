@@ -237,6 +237,14 @@
             {% endif %}
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255,255,255,0.04); padding-top: 12px; margin-top: 12px;" onclick="event.stopPropagation()">
+            <form action="{% url 'vendors:vendor_pin' vendor.id %}" method="POST" style="margin: 0;">
+                {% csrf_token %}
+                <input type="hidden" name="pin" value="{% if vendor.is_pinned %}0{% else %}1{% endif %}">
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn pin-button {% if vendor.is_pinned %}is-pinned{% endif %}" title="{% if vendor.is_pinned %}Unpin vendor{% else %}Pin vendor{% endif %}" aria-label="{% if vendor.is_pinned %}Unpin{% else %}Pin{% endif %} {{ vendor.name }}">
+                    <i class="{% if vendor.is_pinned %}fa-solid{% else %}fa-regular{% endif %} fa-star"></i>
+                </button>
+            </form>
             <a href="{% url 'finance:dashboard' %}?vendor={{ vendor.id }}#new-expense" class="btn btn-primary btn-sm" style="font-size: 0.75rem; padding: 6px 12px;">
                 <i class="fa-solid fa-receipt"></i> Create Expense
             </a>

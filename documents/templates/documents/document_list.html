@@ -18,8 +18,12 @@
             <i class="fa-regular fa-folder-open" style="color: var(--primary); margin-right: 8px;"></i>
             Filter & Search
         </span>
-        <div style="display: flex; gap: 12px; align-items: center;">
-            <span style="font-size: 0.8rem; color: var(--text-muted);">Total Docs: {{ documents.count }}</span>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <div style="position: relative; min-width: 260px;">
+                <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.8rem;"></i>
+                <input type="search" id="documentSearch" class="form-control" placeholder="Search documents, ideas, projects..." autocomplete="off" style="width: 100%; padding-left: 36px; margin-bottom: 0;">
+            </div>
+            <span id="documentSearchCount" style="font-size: 0.8rem; color: var(--text-muted);">Total Docs: {{ documents.count }}</span>
         </div>
     </div>
 </div>
@@ -27,7 +31,7 @@
 <div class="document-list">
     {% if documents %}
         {% for doc in documents %}
-        <div class="document-item card-hover" style="background-color: var(--bg-card); padding: 20px 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+        <div class="document-item card-hover" data-document-search="{{ doc.title }} {% if doc.project %}{{ doc.project.name }}{% endif %} {{ doc.updated_at|date:'M d, Y, h:i A' }} {{ doc.content|striptags|truncatechars:500 }}" style="background-color: var(--bg-card); padding: 20px 24px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 20px; flex-grow: 1;">
                 <div class="doc-icon" style="width: 42px; height: 42px; background-color: var(--info-bg); color: var(--info); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">
                     <i class="fa-regular fa-file-lines"></i>
@@ -49,6 +53,14 @@
             </div>
             
             <div style="display: flex; align-items: center; gap: 16px;">
+                <form action="{% url 'documents:document_pin' doc.id %}" method="POST" style="margin: 0;">
+                    {% csrf_token %}
+                    <input type="hidden" name="pin" value="{% if doc.is_pinned %}0{% else %}1{% endif %}">
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn pin-button {% if doc.is_pinned %}is-pinned{% endif %}" title="{% if doc.is_pinned %}Unpin document{% else %}Pin document{% endif %}" aria-label="{% if doc.is_pinned %}Unpin{% else %}Pin{% endif %} {{ doc.title }}">
+                        <i class="{% if doc.is_pinned %}fa-solid{% else %}fa-regular{% endif %} fa-star"></i>
+                    </button>
+                </form>
                 <a href="{% url 'documents:document_update' doc.id %}" class="btn btn-secondary btn-sm" style="padding: 6px 12px; border-radius: 6px; font-size: 0.75rem;">
                     <i class="fa-regular fa-pen-to-square"></i> Edit
                 </a>
@@ -63,6 +75,11 @@
             </div>
         </div>
         {% endfor %}
+        <div id="documentSearchEmpty" class="card" style="display: none; text-align: center; padding: 48px 32px; color: var(--text-muted);">
+            <i class="fa-solid fa-magnifying-glass" style="font-size: 2rem; margin-bottom: 14px; color: var(--text-muted); display: block;"></i>
+            <h3 style="font-family: var(--font-heading); color: var(--text-primary); margin-bottom: 8px; font-size: 1.15rem;">No matching documents</h3>
+            <p style="font-size: 0.9rem;">Try a different title, project, date, or idea keyword.</p>
+        </div>
     {% else %}
         <div class="card" style="text-align: center; padding: 80px 40px; color: var(--text-muted);">
             <i class="fa-solid fa-file-circle-plus" style="font-size: 3.5rem; margin-bottom: 20px; color: var(--text-muted); display: block;"></i>
@@ -76,4 +93,40 @@
         </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const searchInput = document.getElementById('documentSearch');
+        const countLabel = document.getElementById('documentSearchCount');
+        const emptyState = document.getElementById('documentSearchEmpty');
+        const items = Array.from(document.querySelectorAll('.document-item'));
+
+        if (!searchInput) return;
+
+        function filterDocuments() {
+            const query = searchInput.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            items.forEach(item => {
+                const haystack = (item.dataset.documentSearch || '').toLowerCase();
+                const matches = !query || haystack.includes(query);
+                item.style.display = matches ? 'flex' : 'none';
+                if (matches) visibleCount += 1;
+            });
+
+            if (countLabel) {
+                countLabel.textContent = query
+                    ? `${visibleCount} of ${items.length} docs`
+                    : `Total Docs: ${items.length}`;
+            }
+            if (emptyState) {
+                emptyState.style.display = visibleCount === 0 ? 'block' : 'none';
+            }
+        }
+
+        searchInput.addEventListener('input', filterDocuments);
+    });
+</script>
 {% endblock %}
