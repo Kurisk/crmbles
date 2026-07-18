@@ -10,6 +10,32 @@ from .defaults import ensure_default_task_tags
 from .models import Project, TaskList, Task, TaskNote, Tag
 
 
+def _task_titles_from_list_input(raw_value):
+    titles = []
+    for line in _clean_empty_list_markers(raw_value).splitlines():
+        title = line.strip()
+        title = title.lstrip('-*').strip()
+        if '. ' in title:
+            number, possible_title = title.split('. ', 1)
+            if number.isdigit():
+                title = possible_title.strip()
+        if title:
+            titles.append(title[:200])
+    return titles
+
+
+def _clean_empty_list_markers(raw_value):
+    cleaned_lines = []
+    for line in (raw_value or '').splitlines():
+        stripped = line.strip()
+        if stripped in {'-', '*'}:
+            continue
+        if stripped.endswith('.') and stripped[:-1].isdigit():
+            continue
+        cleaned_lines.append(line.rstrip())
+    return '\n'.join(cleaned_lines).strip()
+
+
 def _project_detail_redirect(project_pk, request=None):
     url = reverse('projects:project_detail', kwargs={'pk': project_pk})
     if request and request.POST.get('return_view') == 'list':
@@ -110,7 +136,7 @@ def task_overview(request, status):
         page_title = f'{page_title}: {list_filter.name}'
         empty_message = f'No {task_status} tasks found in {list_filter.name}.'
 
-    tasks = tasks.select_related('list__project').order_by('list__project__name', 'due_date', '-created_at')
+    tasks = tasks.select_related('list__project').prefetch_related('notes').order_by('list__project__name', 'due_date', '-created_at')
     grouped_projects = []
     current_project = None
     current_group = None
@@ -141,7 +167,7 @@ def project_create(request):
     Creates a new project space in the CRM.
     """
     name = request.POST.get('name')
-    description = request.POST.get('description', '')
+    description = _clean_empty_list_markers(request.POST.get('description', ''))
     if name:
         project = Project.objects.create(name=name, description=description, business=request.business)
         ensure_default_task_tags(project)
@@ -179,7 +205,7 @@ def task_list_create(request, project_id):
     """
     project = get_object_or_404(Project, pk=project_id, business=request.business)
     name = request.POST.get('name')
-    description = request.POST.get('description', '')
+    description = _clean_empty_list_markers(request.POST.get('description', ''))
     if name:
         TaskList.objects.create(project=project, name=name, description=description)
     return redirect('projects:project_detail', pk=project.pk)
@@ -192,7 +218,7 @@ def task_create(request, list_id):
     """
     task_list = get_object_or_404(TaskList, pk=list_id, project__business=request.business)
     title = request.POST.get('title')
-    description = request.POST.get('description', '')
+    description = _clean_empty_list_markers(request.POST.get('description', ''))
     priority = request.POST.get('priority', 'MEDIUM')
     due_date = request.POST.get('due_date')
     tag_ids = request.POST.getlist('tags')
@@ -200,10 +226,11 @@ def task_create(request, list_id):
     if not due_date:
         due_date = None
         
-    if title:
+    titles = _task_titles_from_list_input(title)
+    for task_title in titles:
         task = Task.objects.create(
             list=task_list,
-            title=title,
+            title=task_title,
             description=description,
             priority=priority,
             due_date=due_date
@@ -256,12 +283,19 @@ def task_update(request, task_id):
     """
     task = get_object_or_404(Task, pk=task_id, list__project__business=request.business)
     title = request.POST.get('title')
-    description = request.POST.get('description', '')
+    description = _clean_empty_list_markers(request.POST.get('description', ''))
     priority = request.POST.get('priority')
     status = request.POST.get('status')
     due_date = request.POST.get('due_date')
     list_id = request.POST.get('list')
     tag_ids = request.POST.getlist('tags')
+    note_updates = []
+    for key, value in request.POST.items():
+        if key.startswith('note_content_'):
+            note_id = key.removeprefix('note_content_')
+            if note_id.isdigit():
+                note_updates.append((int(note_id), _clean_empty_list_markers(value)))
+    new_note_content = _clean_empty_list_markers(request.POST.get('new_note_content', ''))
     
     if not due_date:
         due_date = None
@@ -281,6 +315,13 @@ def task_update(request, task_id):
             
         task.save()
         task.tags.set(tag_ids)
+        for note_id, note_content in note_updates:
+            note = TaskNote.objects.filter(pk=note_id, task=task).first()
+            if note and note_content:
+                note.content = note_content
+                note.save(update_fields=['content'])
+        if new_note_content:
+            TaskNote.objects.create(task=task, content=new_note_content)
         messages.success(request, f"Task '{title}' updated successfully.")
     return _project_detail_redirect(task.list.project.pk, request)
 
@@ -291,11 +332,57 @@ def task_note_create(request, task_id):
     Appends a new timestamped follow-up note/comment to a task.
     """
     task = get_object_or_404(Task, pk=task_id, list__project__business=request.business)
-    content = request.POST.get('content')
+    content = _clean_empty_list_markers(request.POST.get('content', ''))
     if content:
-        TaskNote.objects.create(task=task, content=content)
+        note = TaskNote.objects.create(task=task, content=content)
         messages.success(request, "Follow-up note added.")
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'note': {
+                    'id': note.id,
+                    'content': note.content,
+                    'date': note.created_at.strftime('%b %d, %Y, %I:%M %p'),
+                },
+            })
+    elif request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'success': False, 'error': 'Follow-up note cannot be blank.'}, status=400)
     return redirect('projects:project_detail', pk=task.list.project.pk)
+
+
+@require_POST
+def task_note_update(request, note_id):
+    note = get_object_or_404(TaskNote, pk=note_id, task__list__project__business=request.business)
+    content = _clean_empty_list_markers(request.POST.get('content', ''))
+    if content:
+        note.content = content
+        note.save(update_fields=['content'])
+        messages.success(request, "Follow-up note updated.")
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({
+                'success': True,
+                'note': {
+                    'id': note.id,
+                    'content': note.content,
+                    'date': note.created_at.strftime('%b %d, %Y, %I:%M %p'),
+                },
+            })
+    else:
+        messages.error(request, "Follow-up note cannot be blank.")
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'Follow-up note cannot be blank.'}, status=400)
+    return _project_detail_redirect(note.task.list.project.pk, request)
+
+
+@require_POST
+def task_note_delete(request, note_id):
+    note = get_object_or_404(TaskNote, pk=note_id, task__list__project__business=request.business)
+    project_pk = note.task.list.project.pk
+    note.delete()
+    messages.success(request, "Follow-up note deleted.")
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'success': True, 'note_id': note_id})
+    return _project_detail_redirect(project_pk, request)
 
 
 @require_POST
@@ -305,7 +392,8 @@ def task_quick_add(request, project_id):
     """
     project = get_object_or_404(Project, pk=project_id, business=request.business)
     title = request.POST.get('title')
-    if title:
+    titles = _task_titles_from_list_input(title)
+    if titles:
         # Fetch first column. If none exists, auto-spawn 'Main Checklist'
         task_list = project.task_lists.first()
         if not task_list:
@@ -314,14 +402,15 @@ def task_quick_add(request, project_id):
                 name="Main Checklist", 
                 description="Default checklist category for quick entries."
             )
-            
-        Task.objects.create(
-            list=task_list,
-            title=title,
-            priority="MEDIUM",
-            status="TODO"
-        )
-        messages.success(request, f"Added checklist item: '{title}'")
+
+        for task_title in titles:
+            Task.objects.create(
+                list=task_list,
+                title=task_title,
+                priority="MEDIUM",
+                status="TODO"
+            )
+        messages.success(request, f"Added {len(titles)} checklist item{'s' if len(titles) != 1 else ''}.")
         
     return _project_detail_redirect(project_id, request)
 
@@ -333,7 +422,7 @@ def task_list_update(request, list_id):
     """
     task_list = get_object_or_404(TaskList, pk=list_id, project__business=request.business)
     name = request.POST.get('name')
-    description = request.POST.get('description', '')
+    description = _clean_empty_list_markers(request.POST.get('description', ''))
     if name:
         task_list.name = name
         task_list.description = description

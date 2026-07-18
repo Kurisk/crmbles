@@ -1,11 +1,12 @@
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.utils import timezone
 from django.urls import reverse
 
 from accounts.models import Business, BusinessMembership, UserProfile
 from .defaults import DEFAULT_TASK_TAGS, ensure_default_task_tags
-from .models import Project, Tag, Task, TaskList
-from .views import _project_detail_redirect
+from .models import Project, Tag, Task, TaskList, TaskNote
+from .views import _clean_empty_list_markers, _project_detail_redirect
 
 
 class ProjectTaskRedirectTests(SimpleTestCase):
@@ -216,3 +217,172 @@ class TaskOverviewTests(TestCase):
         task.refresh_from_db()
         self.assertTrue(task.is_pinned)
         self.assertIsNotNone(task.pinned_at)
+
+    def test_task_extracts_links_from_description_and_notes(self):
+        task = Task.objects.create(
+            list=self.task_list,
+            title="Has links",
+            description="Spec: https://example.com/spec.",
+        )
+        TaskNote.objects.create(task=task, content="Follow up at https://example.com/note")
+
+        self.assertEqual(
+            task.extracted_links,
+            ["https://example.com/spec", "https://example.com/note"],
+        )
+        self.assertEqual(
+            [
+                (link["url"], link["source_label"])
+                for link in task.link_previews
+            ],
+            [
+                ("https://example.com/spec", "Task description"),
+                ("https://example.com/note", "Note 1"),
+            ],
+        )
+
+    def test_project_board_renders_list_controls_and_card_previews(self):
+        task = Task.objects.create(
+            list=self.task_list,
+            title="Preview task",
+            description="Open https://example.com/task",
+        )
+        TaskNote.objects.create(task=task, content="First note\n- existing bullet\nhttps://example.com/note")
+        TaskNote.objects.create(task=task, content="Second note")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("projects:project_detail", args=[self.project.id]))
+
+        self.assertContains(response, "activateListMode('taskDesc', 'bullet')")
+        self.assertContains(response, "activateListMode('editTaskDesc', 'number')")
+        self.assertContains(response, "task-card-previews")
+        self.assertContains(response, "Note 1")
+        self.assertContains(response, "Note 2")
+        self.assertContains(response, "Notes Glance")
+        self.assertContains(response, "openTaskNoteFromElement")
+        self.assertContains(response, "Task description Link")
+        self.assertContains(response, "Note 1 Link")
+        self.assertContains(response, "task-link-page-preview")
+        self.assertContains(response, '<iframe src="https://example.com/note"', html=False)
+        self.assertContains(response, "https://example.com/task")
+
+    def test_follow_up_notes_are_ordered_oldest_to_newest(self):
+        task = Task.objects.create(list=self.task_list, title="Ordered notes")
+        old_note = TaskNote.objects.create(task=task, content="Old note")
+        new_note = TaskNote.objects.create(task=task, content="New note")
+        TaskNote.objects.filter(id=old_note.id).update(created_at=timezone.now() - timezone.timedelta(days=1))
+        TaskNote.objects.filter(id=new_note.id).update(created_at=timezone.now())
+
+        self.assertEqual(list(task.notes.values_list("content", flat=True)), ["Old note", "New note"])
+        self.assertEqual(task.latest_note.content, "New note")
+
+    def test_project_board_does_not_render_extra_save_changes_note_field(self):
+        Task.objects.create(list=self.task_list, title="Clean modal")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("projects:project_detail", args=[self.project.id]))
+
+        self.assertNotContains(response, "Add Follow-up Note with Save")
+
+    def test_save_changes_updates_existing_notes_and_bottom_new_note(self):
+        task = Task.objects.create(list=self.task_list, title="Update with notes", description="Before")
+        note = TaskNote.objects.create(task=task, content="Original note")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("projects:task_update", args=[task.id]),
+            {
+                "title": "Update with notes",
+                "description": "After",
+                "priority": "MEDIUM",
+                "status": "TODO",
+                "list": self.task_list.id,
+                f"note_content_{note.id}": "Edited from Save Changes",
+                "new_note_content": "Added from bottom composer",
+            },
+        )
+
+        self.assertRedirects(response, reverse("projects:project_detail", args=[self.project.id]))
+        note.refresh_from_db()
+        self.assertEqual(note.content, "Edited from Save Changes")
+        self.assertTrue(task.notes.filter(content="Added from bottom composer").exists())
+
+    def test_follow_up_note_can_be_edited(self):
+        task = Task.objects.create(list=self.task_list, title="Editable note")
+        note = TaskNote.objects.create(task=task, content="Original note")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("projects:task_note_update", args=[note.id]),
+            {"content": "Updated note"},
+        )
+
+        self.assertRedirects(response, reverse("projects:project_detail", args=[self.project.id]))
+        note.refresh_from_db()
+        self.assertEqual(note.content, "Updated note")
+
+    def test_follow_up_note_ajax_update_stays_in_modal(self):
+        task = Task.objects.create(list=self.task_list, title="Ajax note")
+        note = TaskNote.objects.create(task=task, content="Original note")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("projects:task_note_update", args=[note.id]),
+            {"content": "Updated inline"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(response.content, {
+            "success": True,
+            "note": {
+                "id": note.id,
+                "content": "Updated inline",
+                "date": note.created_at.strftime("%b %d, %Y, %I:%M %p"),
+            },
+        })
+
+    def test_follow_up_note_can_be_deleted(self):
+        task = Task.objects.create(list=self.task_list, title="Delete note")
+        note = TaskNote.objects.create(task=task, content="Remove me")
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("projects:task_note_delete", args=[note.id]))
+
+        self.assertRedirects(response, reverse("projects:project_detail", args=[self.project.id]))
+        self.assertFalse(TaskNote.objects.filter(id=note.id).exists())
+
+    def test_follow_up_note_ajax_delete_stays_in_modal(self):
+        task = Task.objects.create(list=self.task_list, title="Ajax delete note")
+        note = TaskNote.objects.create(task=task, content="Remove inline")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("projects:task_note_delete", args=[note.id]),
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(response.content, {"success": True, "note_id": note.id})
+        self.assertFalse(TaskNote.objects.filter(id=note.id).exists())
+
+    def test_quick_add_creates_tasks_from_bulleted_or_numbered_lines(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("projects:task_quick_add", args=[self.project.id]),
+            {"title": "- First item\n- Nested idea\n1. Numbered item"},
+        )
+
+        self.assertRedirects(response, f"{reverse('projects:project_detail', args=[self.project.id])}")
+        self.assertQuerySetEqual(
+            Task.objects.filter(list=self.task_list).order_by("created_at").values_list("title", flat=True),
+            ["First item", "Nested idea", "Numbered item"],
+            transform=str,
+        )
+
+    def test_empty_list_markers_are_removed_before_save(self):
+        self.assertEqual(
+            _clean_empty_list_markers("- First\n-\n1.\n2. Second\n*"),
+            "- First\n2. Second",
+        )

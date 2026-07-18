@@ -1,4 +1,11 @@
+import re
+
 from django.db import models
+
+
+URL_PATTERN = re.compile(r"https?://[^\s<>()]+")
+
+
 class Project(models.Model):
     """
     Represents an overarching business initiative or workspace target
@@ -88,6 +95,50 @@ class Task(models.Model):
     def __str__(self):
         return self.title
 
+    @property
+    def latest_note(self):
+        notes = self._prefetched_notes()
+        return notes[-1] if notes else None
+
+    @property
+    def notes_for_cards(self):
+        return self._prefetched_notes()
+
+    @property
+    def extracted_links(self):
+        return [link["url"] for link in self.link_previews]
+
+    @property
+    def link_previews(self):
+        seen = set()
+        links = []
+        sources = [{"content": self.description, "label": "Task description", "note": None}]
+        sources.extend(
+            {
+                "content": note.content,
+                "label": f"Note {index}",
+                "note": note,
+            }
+            for index, note in enumerate(self._prefetched_notes(), start=1)
+        )
+        for source in sources:
+            value = source["content"]
+            for match in URL_PATTERN.findall(value or ""):
+                url = match.rstrip(".,);]")
+                if url and url not in seen:
+                    seen.add(url)
+                    links.append({
+                        "url": url,
+                        "source_label": source["label"],
+                        "source_note": source["note"],
+                    })
+        return links
+
+    def _prefetched_notes(self):
+        if not hasattr(self, "_notes_cache_for_cards"):
+            self._notes_cache_for_cards = list(self.notes.all())
+        return self._notes_cache_for_cards
+
 
 class TaskNote(models.Model):
     """
@@ -98,7 +149,7 @@ class TaskNote(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ['-created_at']
+        ordering = ['created_at']
 
     def __str__(self):
         return f"Note on {self.task.title} at {self.created_at}"

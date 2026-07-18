@@ -1214,6 +1214,200 @@ input, button, textarea, select {
     overflow: hidden;
 }
 
+.task-card-previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-left: 30px;
+    margin-top: -4px;
+}
+
+.task-card-previews-inline {
+    padding-left: 0;
+    margin-top: 10px;
+}
+
+.task-preview-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background-color: rgba(15, 21, 36, 0.6);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: default;
+}
+
+a.task-preview-chip {
+    cursor: pointer;
+}
+
+.task-preview-chip:hover,
+.task-preview-chip:focus-visible {
+    border-color: var(--border-color-hover);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.task-preview-popover {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 40;
+    display: none;
+    width: min(280px, 72vw);
+    max-height: 220px;
+    overflow-y: auto;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color-hover);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    padding: 10px 12px;
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    font-weight: 500;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.task-preview-popover strong {
+    display: block;
+    color: var(--primary);
+    font-size: 0.68rem;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+}
+
+.task-preview-popover-wide {
+    width: min(360px, 82vw);
+}
+
+.task-link-preview-popover {
+    width: min(460px, 86vw);
+    max-height: 420px;
+}
+
+.task-link-source-note {
+    display: block;
+    border-left: 2px solid rgba(99, 102, 241, 0.45);
+    margin: 4px 0 8px;
+    padding-left: 8px;
+    color: var(--text-secondary);
+}
+
+.task-link-page-preview {
+    display: block;
+    margin-top: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background-color: var(--bg-sidebar);
+}
+
+.task-link-page-preview iframe {
+    display: block;
+    width: 100%;
+    height: 220px;
+    border: 0;
+    background-color: var(--bg-card);
+    pointer-events: none;
+}
+
+.task-notes-glance {
+    border-color: rgba(99, 102, 241, 0.36);
+    background-color: rgba(99, 102, 241, 0.1);
+}
+
+.task-glance-note {
+    display: block;
+    padding: 8px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+}
+
+.task-glance-note:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.task-glance-date {
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    margin-bottom: 3px;
+}
+
+.task-preview-chip:hover .task-preview-popover,
+.task-preview-chip:focus-visible .task-preview-popover {
+    display: block;
+}
+
+.text-format-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.text-format-toolbar .btn {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+}
+
+.editable-note-card {
+    background-color: var(--bg-sidebar);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+}
+
+.editable-note-card-header,
+.editable-note-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.editable-note-card-header {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    margin-bottom: 8px;
+}
+
+.editable-note-card-header span:first-child {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.editable-note-card textarea {
+    display: block;
+    width: 100%;
+    min-height: 104px;
+    box-sizing: border-box;
+    font-size: 0.82rem;
+    padding: 8px 12px;
+    margin-top: 8px;
+    resize: vertical;
+}
+
+.editable-note-card-actions {
+    justify-content: flex-end;
+    margin-top: 8px;
+}
+
+.editable-note-card.is-focused-note {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
 .task-footer {
     display: flex;
     justify-content: space-between;

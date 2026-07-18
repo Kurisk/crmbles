@@ -191,8 +191,54 @@
                     
                     {% if task.description %}
                     <p class="task-desc" id="task-desc-{{ task.id }}" style="padding-left: 30px; {% if task.status == 'DONE' %}opacity: 0.4; text-decoration: line-through;{% endif %}">
-                        {{ task.description }}
+                        {{ task.description|linebreaksbr }}
                     </p>
+                    {% endif %}
+
+                    {% if task.notes_for_cards or task.link_previews %}
+                    <div class="task-card-previews" aria-label="Task notes and links">
+                        {% for note in task.notes_for_cards %}
+                        <span class="task-preview-chip" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})" tabindex="0">
+                            <i class="fa-regular fa-note-sticky"></i>
+                            Note {{ forloop.counter }}
+                            <span class="task-preview-popover">
+                                <strong>{{ note.created_at|date:"M d, Y, h:i A" }}</strong>
+                                <span>{{ note.content|linebreaksbr }}</span>
+                            </span>
+                        </span>
+                        {% endfor %}
+                        {% if task.notes_for_cards %}
+                        <span class="task-preview-chip task-notes-glance" tabindex="0">
+                            <i class="fa-regular fa-comments"></i>
+                            Notes Glance
+                            <span class="task-preview-popover task-preview-popover-wide">
+                                <strong>All notes</strong>
+                                {% for note in task.notes_for_cards %}
+                                <span class="task-glance-note" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})">
+                                    <span class="task-glance-date">{{ note.created_at|date:"M d, Y, h:i A" }}</span>
+                                    <span>{{ note.content|linebreaksbr }}</span>
+                                </span>
+                                {% endfor %}
+                            </span>
+                        </span>
+                        {% endif %}
+                        {% for link in task.link_previews %}
+                        <a class="task-preview-chip task-link-preview-chip" href="{{ link.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" tabindex="0">
+                            <i class="fa-solid fa-link"></i>
+                            {{ link.source_label }} Link
+                            <span class="task-preview-popover task-link-preview-popover">
+                                <strong>{{ link.source_label }} link</strong>
+                                {% if link.source_note %}
+                                <span class="task-link-source-note">{{ link.source_note.content|linebreaksbr }}</span>
+                                {% endif %}
+                                <span>{{ link.url }}</span>
+                                <span class="task-link-page-preview">
+                                    <iframe src="{{ link.url }}" title="Preview of {{ link.url }}" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                                </span>
+                            </span>
+                        </a>
+                        {% endfor %}
+                    </div>
                     {% endif %}
                     
                     <!-- Task tags list visual display -->
@@ -229,7 +275,7 @@
                     <!-- Hidden notes cache -->
                     <div class="task-notes-cache" style="display: none;">
                         {% for note in task.notes.all %}
-                        <div class="cache-note" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                        <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
                         {% endfor %}
                     </div>
                 </div>
@@ -270,11 +316,21 @@
 <!-- Master Task List View -->
 <div id="listViewContainer" style="display: none; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 24px; box-shadow: var(--shadow-sm); margin-bottom: 40px;">
     <!-- Quick Add Checklist Form -->
-    <form action="{% url 'projects:task_quick_add' project.id %}" method="POST" style="margin-bottom: 24px; display: flex; gap: 12px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
+    <form action="{% url 'projects:task_quick_add' project.id %}" method="POST" style="margin-bottom: 24px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm);">
         {% csrf_token %}
         <input type="hidden" name="return_view" class="return-view-input" value="board">
-        <input type="text" class="form-control" name="title" required placeholder="Type a task name and press Enter to add to checklist..." autocomplete="off" style="flex-grow: 1; padding: 10px 16px; font-weight: 500; margin-bottom: 0;">
-        <button type="submit" class="btn btn-primary" style="padding: 10px 24px;">
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="text-format-toolbar" aria-label="Checklist list formatting">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('quickTaskTitle', 'bullet')">
+                    <i class="fa-solid fa-list-ul"></i> Bullets
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('quickTaskTitle', 'number')">
+                    <i class="fa-solid fa-list-ol"></i> Numbers
+                </button>
+            </div>
+            <textarea class="form-control auto-list-textarea" name="title" id="quickTaskTitle" required placeholder="Type one task per line..." autocomplete="off" rows="2" style="flex-grow: 1; padding: 10px 16px; font-weight: 500; margin-bottom: 0;"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" style="padding: 10px 24px; align-self: end;">
             <i class="fa-solid fa-plus"></i> Add Item
         </button>
     </form>
@@ -325,9 +381,54 @@
                             <span class="task-label {% if task.status == 'DONE' %}completed-item{% endif %}" id="task-text-{{ task.id }}">{{ task.title }}</span>
                             <div class="task-notes-cache" style="display: none;">
                                 {% for note in task.notes.all %}
-                                <div class="cache-note" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                                <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
                                 {% endfor %}
                             </div>
+                            {% if task.notes_for_cards or task.link_previews %}
+                            <div class="task-card-previews task-card-previews-inline" aria-label="Task notes and links">
+                                {% for note in task.notes_for_cards %}
+                                <span class="task-preview-chip" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})" tabindex="0">
+                                    <i class="fa-regular fa-note-sticky"></i>
+                                    Note {{ forloop.counter }}
+                                    <span class="task-preview-popover">
+                                        <strong>{{ note.created_at|date:"M d, Y, h:i A" }}</strong>
+                                        <span>{{ note.content|linebreaksbr }}</span>
+                                    </span>
+                                </span>
+                                {% endfor %}
+                                {% if task.notes_for_cards %}
+                                <span class="task-preview-chip task-notes-glance" tabindex="0">
+                                    <i class="fa-regular fa-comments"></i>
+                                    Notes Glance
+                                    <span class="task-preview-popover task-preview-popover-wide">
+                                        <strong>All notes</strong>
+                                        {% for note in task.notes_for_cards %}
+                                        <span class="task-glance-note" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})">
+                                            <span class="task-glance-date">{{ note.created_at|date:"M d, Y, h:i A" }}</span>
+                                            <span>{{ note.content|linebreaksbr }}</span>
+                                        </span>
+                                        {% endfor %}
+                                    </span>
+                                </span>
+                                {% endif %}
+                                {% for link in task.link_previews %}
+                                <a class="task-preview-chip task-link-preview-chip" href="{{ link.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" tabindex="0">
+                                    <i class="fa-solid fa-link"></i>
+                                    {{ link.source_label }} Link
+                                    <span class="task-preview-popover task-link-preview-popover">
+                                        <strong>{{ link.source_label }} link</strong>
+                                        {% if link.source_note %}
+                                        <span class="task-link-source-note">{{ link.source_note.content|linebreaksbr }}</span>
+                                        {% endif %}
+                                        <span>{{ link.url }}</span>
+                                        <span class="task-link-page-preview">
+                                            <iframe src="{{ link.url }}" title="Preview of {{ link.url }}" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                                        </span>
+                                    </span>
+                                </a>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </td>
                         <td style="padding: 14px 16px; color: var(--text-secondary);">{{ list.name }}</td>
                         <td style="padding: 14px 16px;" data-val="{{ task.status }}">
@@ -405,9 +506,54 @@
                             <span class="task-label completed-item" id="task-text-{{ task.id }}">{{ task.title }}</span>
                             <div class="task-notes-cache" style="display: none;">
                                 {% for note in task.notes.all %}
-                                <div class="cache-note" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                                <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
                                 {% endfor %}
                             </div>
+                            {% if task.notes_for_cards or task.link_previews %}
+                            <div class="task-card-previews task-card-previews-inline" aria-label="Task notes and links">
+                                {% for note in task.notes_for_cards %}
+                                <span class="task-preview-chip" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})" tabindex="0">
+                                    <i class="fa-regular fa-note-sticky"></i>
+                                    Note {{ forloop.counter }}
+                                    <span class="task-preview-popover">
+                                        <strong>{{ note.created_at|date:"M d, Y, h:i A" }}</strong>
+                                        <span>{{ note.content|linebreaksbr }}</span>
+                                    </span>
+                                </span>
+                                {% endfor %}
+                                {% if task.notes_for_cards %}
+                                <span class="task-preview-chip task-notes-glance" tabindex="0">
+                                    <i class="fa-regular fa-comments"></i>
+                                    Notes Glance
+                                    <span class="task-preview-popover task-preview-popover-wide">
+                                        <strong>All notes</strong>
+                                        {% for note in task.notes_for_cards %}
+                                        <span class="task-glance-note" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})">
+                                            <span class="task-glance-date">{{ note.created_at|date:"M d, Y, h:i A" }}</span>
+                                            <span>{{ note.content|linebreaksbr }}</span>
+                                        </span>
+                                        {% endfor %}
+                                    </span>
+                                </span>
+                                {% endif %}
+                                {% for link in task.link_previews %}
+                                <a class="task-preview-chip task-link-preview-chip" href="{{ link.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()" tabindex="0">
+                                    <i class="fa-solid fa-link"></i>
+                                    {{ link.source_label }} Link
+                                    <span class="task-preview-popover task-link-preview-popover">
+                                        <strong>{{ link.source_label }} link</strong>
+                                        {% if link.source_note %}
+                                        <span class="task-link-source-note">{{ link.source_note.content|linebreaksbr }}</span>
+                                        {% endif %}
+                                        <span>{{ link.url }}</span>
+                                        <span class="task-link-page-preview">
+                                            <iframe src="{{ link.url }}" title="Preview of {{ link.url }}" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                                        </span>
+                                    </span>
+                                </a>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </td>
                         <td style="padding: 14px 16px; color: var(--text-secondary);">{{ list.name }}</td>
                         <td style="padding: 14px 16px;" data-val="{{ task.status }}">
@@ -490,12 +636,28 @@
             <input type="hidden" name="return_view" class="return-view-input" value="board">
             <div class="form-group">
                 <label for="taskTitle" class="form-label">Task Summary *</label>
-                <input type="text" class="form-control" id="taskTitle" name="title" required placeholder="What needs to be done?" autocomplete="off">
+                <div class="text-format-toolbar" aria-label="Task list formatting">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('taskTitle', 'bullet')">
+                        <i class="fa-solid fa-list-ul"></i> Bullets
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('taskTitle', 'number')">
+                        <i class="fa-solid fa-list-ol"></i> Numbers
+                    </button>
+                </div>
+                <textarea class="form-control auto-list-textarea" id="taskTitle" name="title" required placeholder="What needs to be done?" autocomplete="off" rows="2"></textarea>
             </div>
             
             <div class="form-group">
                 <label for="taskDesc" class="form-label">Notes / Instructions</label>
-                <textarea class="form-control" id="taskDesc" name="description" rows="2" placeholder="Write any specific criteria or checklists here..."></textarea>
+                <div class="text-format-toolbar" aria-label="Notes list formatting">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('taskDesc', 'bullet')">
+                        <i class="fa-solid fa-list-ul"></i> Bullets
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('taskDesc', 'number')">
+                        <i class="fa-solid fa-list-ol"></i> Numbers
+                    </button>
+                </div>
+                <textarea class="form-control auto-list-textarea" id="taskDesc" name="description" rows="2" placeholder="Write any specific criteria or checklists here..."></textarea>
             </div>
             
             <!-- Visual Tag Multiselect -->
@@ -552,6 +714,7 @@
         <form id="editTaskForm" method="POST" action="">
             {% csrf_token %}
             <input type="hidden" name="return_view" class="return-view-input" value="board">
+            <div id="editTaskNoteSync" style="display: none;"></div>
             <div class="form-group">
                 <label for="editTaskTitle" class="form-label" style="font-size: 0.8rem;">Task Summary *</label>
                 <input type="text" class="form-control" name="title" id="editTaskTitle" required placeholder="What needs to be done?" autocomplete="off" style="font-weight: 600;">
@@ -595,9 +758,17 @@
             
             <div class="form-group" style="margin-top: 14px;">
                 <label for="editTaskDesc" class="form-label" style="font-size: 0.8rem;">Notes & Core Description</label>
-                <textarea class="form-control" name="description" id="editTaskDesc" rows="3" placeholder="Core instructions or check criteria..."></textarea>
+                <div class="text-format-toolbar" aria-label="Description list formatting">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('editTaskDesc', 'bullet')">
+                        <i class="fa-solid fa-list-ul"></i> Bullets
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('editTaskDesc', 'number')">
+                        <i class="fa-solid fa-list-ol"></i> Numbers
+                    </button>
+                </div>
+                <textarea class="form-control auto-list-textarea" name="description" id="editTaskDesc" rows="3" placeholder="Core instructions or check criteria..."></textarea>
             </div>
-            
+
             <!-- Visual Tag Multiselect (Edit) -->
             <div class="form-group" style="margin-top: 14px;">
                 <label class="form-label" style="font-size: 0.8rem;">Tags on this task</label>
@@ -638,7 +809,7 @@
             <h4 class="card-title" style="font-size: 1rem; margin-bottom: 12px;"><i class="fa-regular fa-comments" style="color: var(--info); margin-right: 6px;"></i> Follow-up Notes Timeline</h4>
             
             <!-- Notes list -->
-            <div id="detailTaskNotesList" style="display: flex; flex-direction: column; gap: 10px; max-height: 200px; overflow-y: auto; padding: 2px;">
+            <div id="detailTaskNotesList" style="display: flex; flex-direction: column; gap: 10px; padding: 2px;">
                 <span style="color: var(--text-muted); font-style: italic; font-size: 0.85rem;">No notes recorded yet.</span>
             </div>
             
@@ -646,7 +817,15 @@
             <form id="addTaskNoteForm" method="POST" action="" style="margin-top: 16px;">
                 {% csrf_token %}
                 <div class="form-group" style="margin-bottom: 8px;">
-                    <textarea class="form-control" name="content" required placeholder="Type follow-up update, timeline note, or progress details here..." rows="2" style="font-size: 0.85rem; padding: 8px 12px;"></textarea>
+                    <div class="text-format-toolbar" aria-label="Follow-up note list formatting">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('taskNoteContent', 'bullet')">
+                            <i class="fa-solid fa-list-ul"></i> Bullets
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('taskNoteContent', 'number')">
+                            <i class="fa-solid fa-list-ol"></i> Numbers
+                        </button>
+                    </div>
+                    <textarea class="form-control auto-list-textarea" name="content" id="taskNoteContent" required placeholder="Type follow-up update, timeline note, or progress details here..." rows="4" style="font-size: 0.85rem; padding: 8px 12px;"></textarea>
                 </div>
                 <div style="display: flex; justify-content: flex-end;">
                     <button type="submit" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; padding: 6px 14px;">
@@ -747,6 +926,314 @@
 
 {% block extra_js %}
 <script>
+    function activateListMode(textareaId, listType) {
+        const textarea = document.getElementById(textareaId);
+        if (!textarea) return;
+
+        textarea.dataset.listMode = listType;
+        indentCurrentLine(textarea);
+        insertListMarker(textarea, listType);
+    }
+
+    function currentLineRange(textarea) {
+        const value = textarea.value;
+        const start = textarea.selectionStart || 0;
+        const lineStart = value.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+        const nextBreak = value.indexOf('\n', start);
+        const lineEnd = nextBreak === -1 ? value.length : nextBreak;
+        return { lineStart, lineEnd };
+    }
+
+    function markerPattern() {
+        return /^(\s*)((?:[-*])|(?:\d+\.))\s+/;
+    }
+
+    function indentCurrentLine(textarea) {
+        const { lineStart, lineEnd } = currentLineRange(textarea);
+        const line = textarea.value.slice(lineStart, lineEnd);
+        if (!markerPattern().test(line)) return;
+
+        textarea.value = `${textarea.value.slice(0, lineStart)}  ${line}${textarea.value.slice(lineEnd)}`;
+        const nextCursor = (textarea.selectionStart || 0) + 2;
+        textarea.setSelectionRange(nextCursor, nextCursor);
+    }
+
+    function nextListNumber(textarea, indent) {
+        const lines = textarea.value.slice(0, textarea.selectionStart || 0).split('\n').reverse();
+        for (const line of lines) {
+            const match = line.match(/^(\s*)(\d+)\.\s+/);
+            if (match && match[1].length === indent.length) {
+                return Number(match[2]) + 1;
+            }
+        }
+        return 1;
+    }
+
+    function insertListMarker(textarea, listType) {
+        const value = textarea.value;
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || start;
+        const before = value.slice(0, start);
+        const after = value.slice(end);
+        const { lineStart, lineEnd } = currentLineRange(textarea);
+        const line = value.slice(lineStart, lineEnd);
+        const existingMarker = line.match(markerPattern());
+
+        if (existingMarker) {
+            textarea.focus();
+            return;
+        }
+
+        const indent = (line.match(/^\s*/) || [''])[0];
+        const linePrefix = before && !before.endsWith('\n') && before.trim() ? '\n' : '';
+        const marker = listType === 'number' ? `${nextListNumber(textarea, indent)}. ` : '- ';
+        const insertion = `${linePrefix}${marker}`;
+
+        textarea.value = `${before}${insertion}${after}`;
+        const nextCursor = before.length + insertion.length;
+        textarea.focus();
+        textarea.setSelectionRange(nextCursor, nextCursor);
+    }
+
+    function continueListOnEnter(textarea, event) {
+        if (event.key !== 'Enter' || event.shiftKey) return;
+
+        const { lineStart, lineEnd } = currentLineRange(textarea);
+        const line = textarea.value.slice(lineStart, lineEnd);
+        const match = line.match(markerPattern());
+        if (!match && !textarea.dataset.listMode) return;
+
+        event.preventDefault();
+
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || start;
+        const indent = match ? match[1] : '';
+        const listType = match && /^\d+\.$/.test(match[2]) ? 'number' : (textarea.dataset.listMode || 'bullet');
+        const marker = listType === 'number' ? `${nextListNumber(textarea, indent)}. ` : '- ';
+        const insertion = `\n${indent}${marker}`;
+
+        textarea.value = `${textarea.value.slice(0, start)}${insertion}${textarea.value.slice(end)}`;
+        const nextCursor = start + insertion.length;
+        textarea.setSelectionRange(nextCursor, nextCursor);
+    }
+
+    document.addEventListener('keydown', event => {
+        if (event.target && event.target.classList && event.target.classList.contains('auto-list-textarea')) {
+            continueListOnEnter(event.target, event);
+        }
+    });
+
+    function removeEmptyListMarkers(value) {
+        return (value || '')
+            .split('\n')
+            .filter(line => {
+                const trimmed = line.trim();
+                return trimmed !== '-' && trimmed !== '*' && !/^\d+\.$/.test(trimmed);
+            })
+            .join('\n')
+            .trim();
+    }
+
+    function textareaValueForSave(textarea) {
+        return removeEmptyListMarkers(textarea.value);
+    }
+
+    function syncNotesIntoTaskForm() {
+        const syncContainer = document.getElementById('editTaskNoteSync');
+        if (!syncContainer) return;
+
+        syncContainer.innerHTML = '';
+        document.querySelectorAll('#detailTaskNotesList textarea[id^="taskNoteEdit-"]').forEach(textarea => {
+            textarea.value = textareaValueForSave(textarea);
+            const noteId = textarea.id.replace('taskNoteEdit-', '');
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = `note_content_${noteId}`;
+            hidden.value = textarea.value;
+            syncContainer.appendChild(hidden);
+        });
+
+        const newNote = document.getElementById('taskNoteContent');
+        if (newNote) {
+            newNote.value = textareaValueForSave(newNote);
+            if (newNote.value) {
+                const hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'new_note_content';
+                hidden.value = newNote.value;
+                syncContainer.appendChild(hidden);
+            }
+        }
+    }
+
+    document.addEventListener('submit', event => {
+        if (!event.target) return;
+        event.target.querySelectorAll('textarea.auto-list-textarea').forEach(textarea => {
+            textarea.value = textareaValueForSave(textarea);
+        });
+        if (event.target.id === 'editTaskForm') {
+            syncNotesIntoTaskForm();
+        }
+    });
+
+    function updateNoteCache(noteId, content, date) {
+        document.querySelectorAll(`.task-notes-cache .cache-note[data-note-id="${noteId}"]`).forEach(cacheNote => {
+            cacheNote.textContent = content;
+            if (date) {
+                cacheNote.dataset.date = date;
+            }
+        });
+    }
+
+    function removeNoteFromUi(noteId) {
+        document.querySelectorAll(`[data-note-id="${noteId}"]`).forEach(element => {
+            const noteCard = element.closest('.editable-note-card');
+            if (noteCard) {
+                noteCard.remove();
+            } else {
+                element.remove();
+            }
+        });
+
+        const notesContainer = document.getElementById('detailTaskNotesList');
+        if (notesContainer && !notesContainer.querySelector('.editable-note-card')) {
+            notesContainer.innerHTML = '<span style="color: var(--text-muted); font-style: italic; font-size: 0.85rem;">No follow-up notes recorded yet.</span>';
+        }
+    }
+
+    function setNoteSaveState(form, label) {
+        const button = form.querySelector('button[type="submit"]');
+        if (!button) return;
+        button.dataset.originalText = button.dataset.originalText || button.innerHTML;
+        button.innerHTML = label;
+        setTimeout(() => {
+            button.innerHTML = button.dataset.originalText;
+        }, 1400);
+    }
+
+    function submitNoteFormInModal(form) {
+        const textarea = form.querySelector('textarea[name="content"]');
+        if (textarea) {
+            textarea.value = textareaValueForSave(textarea);
+        }
+
+        return fetch(form.action, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: new FormData(form)
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Unable to save note.');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.success || !data.note) return;
+            if (textarea) {
+                textarea.value = data.note.content;
+            }
+            if (form.id === 'addTaskNoteForm') {
+                const notesContainer = document.getElementById('detailTaskNotesList');
+                const emptyState = notesContainer ? notesContainer.querySelector('span[style*="italic"]') : null;
+                if (emptyState) emptyState.remove();
+                if (notesContainer) {
+                    notesContainer.appendChild(buildEditableNoteForm(data.note.id, data.note.date, data.note.content));
+                }
+            }
+            updateNoteCache(data.note.id, data.note.content, data.note.date);
+            setNoteSaveState(form, '<i class="fa-solid fa-check"></i> Saved');
+            return true;
+        })
+        .catch(() => {
+            setNoteSaveState(form, '<i class="fa-solid fa-triangle-exclamation"></i> Try Again');
+            return false;
+        });
+    }
+
+    function deleteNoteInModal(noteId, button) {
+        if (!confirm('Delete this follow-up note?')) return;
+
+        const form = button.closest('.editable-note-card');
+        fetch(`/projects/tasks/notes/${noteId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Unable to delete note.');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                removeNoteFromUi(noteId);
+            }
+        })
+        .catch(() => {
+            if (form) {
+                setNoteSaveState(form, '<i class="fa-solid fa-triangle-exclamation"></i> Try Again');
+            }
+        });
+    }
+
+    document.addEventListener('submit', event => {
+        if (event.target && event.target.classList && event.target.classList.contains('editable-note-card')) {
+            event.preventDefault();
+            submitNoteFormInModal(event.target);
+        }
+        if (event.target && event.target.id === 'addTaskNoteForm') {
+            event.preventDefault();
+            submitNoteFormInModal(event.target).then(saved => {
+                if (saved) {
+                    const textarea = document.getElementById('taskNoteContent');
+                    if (textarea) textarea.value = '';
+                }
+            });
+        }
+    });
+
+    function buildEditableNoteForm(noteId, date, content) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/projects/tasks/notes/${noteId}/update/`;
+        form.className = 'editable-note-card';
+        form.dataset.noteId = noteId;
+        form.innerHTML = `
+            <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+            <input type="hidden" name="return_view" value="${currentProjectView()}">
+            <div class="editable-note-card-header">
+                <span><i class="fa-regular fa-comment-dots"></i> Follow-up Note</span>
+                <span>${date}</span>
+            </div>
+            <div class="text-format-toolbar" aria-label="Edit note list formatting">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('taskNoteEdit-${noteId}', 'bullet')">
+                    <i class="fa-solid fa-list-ul"></i> Bullets
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="activateListMode('taskNoteEdit-${noteId}', 'number')">
+                    <i class="fa-solid fa-list-ol"></i> Numbers
+                </button>
+            </div>
+            <textarea class="form-control auto-list-textarea" id="taskNoteEdit-${noteId}" name="content" rows="4"></textarea>
+            <div class="editable-note-card-actions">
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteNoteInModal(${noteId}, this)">
+                    <i class="fa-regular fa-trash-can"></i> Delete Note
+                </button>
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <i class="fa-regular fa-floppy-disk"></i> Save Note
+                </button>
+            </div>
+        `;
+        form.querySelector('textarea').value = content;
+        return form;
+    }
+
     // AJAX to toggle task status dynamically
     function toggleTaskStatus(checkbox) {
         const taskId = checkbox.dataset.taskId;
@@ -899,7 +1386,26 @@
         setTimeout(() => modal.style.display = 'none', 300);
     }
     
-    function viewTaskDetails(card) {
+    function openTaskNoteFromElement(event, element, noteId) {
+        event.stopPropagation();
+        event.preventDefault();
+        const source = element.closest('.task-card') || element.closest('tr[data-task-card-id]');
+        if (source) {
+            viewTaskDetails(source, noteId);
+        }
+    }
+
+    function focusTaskNote(noteId) {
+        if (!noteId) return;
+        const target = document.getElementById(`taskNoteEdit-${noteId}`);
+        if (!target) return;
+
+        target.closest('.editable-note-card').classList.add('is-focused-note');
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => target.focus(), 250);
+    }
+
+    function viewTaskDetails(card, targetNoteId = null) {
         const id = card.dataset.id;
         const listId = card.dataset.listId;
         const title = card.dataset.title;
@@ -956,22 +1462,18 @@
             notesCache.forEach(note => {
                 const content = note.innerText;
                 const date = note.dataset.date;
-                notesContainer.innerHTML += `
-                    <div style="background-color: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 14px;">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">
-                            <span style="font-weight: 600; color: var(--primary);"><i class="fa-regular fa-comment-dots"></i> Progress Note</span>
-                            <span>${date}</span>
-                        </div>
-                        <div style="font-size: 0.82rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.5;">${content}</div>
-                    </div>
-                `;
+                const noteId = note.dataset.noteId;
+                notesContainer.appendChild(buildEditableNoteForm(noteId, date, content));
             });
         }
         
         // Open Modal
         const modal = document.getElementById('taskDetailsModal');
         modal.style.display = 'flex';
-        setTimeout(() => modal.classList.add('active'), 10);
+        setTimeout(() => {
+            modal.classList.add('active');
+            focusTaskNote(targetNoteId);
+        }, 10);
     }
     
     function closeTaskDetailsModal() {

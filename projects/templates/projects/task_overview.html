@@ -70,8 +70,53 @@ Tasks grouped by their project board and original list column.
                     </div>
                     {% if task.description %}
                     <p style="color: var(--text-secondary); font-size: 0.82rem; margin-top: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
-                        {{ task.description }}
+                        {{ task.description|linebreaksbr }}
                     </p>
+                    {% endif %}
+                    {% if task.notes_for_cards or task.link_previews %}
+                    <div class="task-card-previews task-card-previews-inline" aria-label="Task notes and links">
+                        {% for note in task.notes_for_cards %}
+                        <span class="task-preview-chip" tabindex="0">
+                            <i class="fa-regular fa-note-sticky"></i>
+                            Note {{ forloop.counter }}
+                            <span class="task-preview-popover">
+                                <strong>{{ note.created_at|date:"M d, Y, h:i A" }}</strong>
+                                <span>{{ note.content|linebreaksbr }}</span>
+                            </span>
+                        </span>
+                        {% endfor %}
+                        {% if task.notes_for_cards %}
+                        <span class="task-preview-chip task-notes-glance" tabindex="0">
+                            <i class="fa-regular fa-comments"></i>
+                            Notes Glance
+                            <span class="task-preview-popover task-preview-popover-wide">
+                                <strong>All notes</strong>
+                                {% for note in task.notes_for_cards %}
+                                <span class="task-glance-note">
+                                    <span class="task-glance-date">{{ note.created_at|date:"M d, Y, h:i A" }}</span>
+                                    <span>{{ note.content|linebreaksbr }}</span>
+                                </span>
+                                {% endfor %}
+                            </span>
+                        </span>
+                        {% endif %}
+                        {% for link in task.link_previews %}
+                        <a class="task-preview-chip task-link-preview-chip" href="{{ link.url }}" target="_blank" rel="noopener" tabindex="0">
+                            <i class="fa-solid fa-link"></i>
+                            {{ link.source_label }} Link
+                            <span class="task-preview-popover task-link-preview-popover">
+                                <strong>{{ link.source_label }} link</strong>
+                                {% if link.source_note %}
+                                <span class="task-link-source-note">{{ link.source_note.content|linebreaksbr }}</span>
+                                {% endif %}
+                                <span>{{ link.url }}</span>
+                                <span class="task-link-page-preview">
+                                    <iframe src="{{ link.url }}" title="Preview of {{ link.url }}" loading="lazy" referrerpolicy="no-referrer"></iframe>
+                                </span>
+                            </span>
+                        </a>
+                        {% endfor %}
+                    </div>
                     {% endif %}
                     <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 0.75rem; color: var(--text-muted);">
                         <span><i class="fa-solid fa-list-ul" style="margin-right: 4px;"></i>{{ task.list.name }}</span>
