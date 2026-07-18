@@ -1,15 +1,15 @@
-APP_VERSION = "0.2.1"
+APP_VERSION = "0.2.2"
 SUPPORT_EMAIL = "dowitzgame@gmail.com"
 
 LATEST_UPDATE = {
-    "title": "FAQ Style Refresh",
-    "date": "July 15, 2026",
-    "summary": "CRMbles now cache-busts shared styles so public FAQ and footer layouts load consistently.",
+    "title": "Project Notes And Link Preview Refresh",
+    "date": "July 18, 2026",
+    "summary": "Project boards now have clearer task notes, editable follow-up notes, and labeled link previews.",
     "items": [
-        "Added versioned stylesheet links so browsers pick up the newest public-page styling.",
-        "Kept the searchable FAQ, contact path, footer, and latest update surface available for prospective clients.",
-        "Preserved the temporary access request path through dowitzgame@gmail.com.",
-        "Updated the latest update page to reflect the current frontend polish pass.",
+        "Added editable follow-up notes with save and delete actions that stay inside the task window.",
+        "Added bullet and numbered list helpers for task and note entry, including automatic continuation.",
+        "Added card-level note chips, Notes Glance, and link chips tied back to their source note.",
+        "Updated the stylesheet version so browsers load the newest project-board layout.",
     ],
 }
 
