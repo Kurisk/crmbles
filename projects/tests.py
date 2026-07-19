@@ -1,9 +1,12 @@
 from django.contrib.auth import get_user_model
-from django.test import RequestFactory, SimpleTestCase, TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from django.urls import reverse
+import tempfile
 
 from accounts.models import Business, BusinessMembership, UserProfile
+from documents.models import DocumentAttachment
 from .defaults import DEFAULT_TASK_TAGS, ensure_default_task_tags
 from .models import Project, Tag, Task, TaskList, TaskNote
 from .views import _clean_empty_list_markers, _project_detail_redirect
@@ -106,6 +109,11 @@ class ProjectDeletePermissionTests(TestCase):
 
 class TaskOverviewTests(TestCase):
     def setUp(self):
+        self.media_dir = tempfile.TemporaryDirectory()
+        self.override = override_settings(MEDIA_ROOT=self.media_dir.name)
+        self.override.enable()
+        self.addCleanup(self.override.disable)
+        self.addCleanup(self.media_dir.cleanup)
         User = get_user_model()
         self.business = Business.objects.create(name="Task Overview Workspace")
         self.user = User.objects.create_user(username="task-user", password="StrongPass123!")
@@ -339,8 +347,96 @@ class TaskOverviewTests(TestCase):
                 "id": note.id,
                 "content": "Updated inline",
                 "date": note.created_at.strftime("%b %d, %Y, %I:%M %p"),
+                "attachments": [],
             },
         })
+
+    def test_project_board_renders_note_attachments_for_card_preview_and_modal_cache(self):
+        task = Task.objects.create(list=self.task_list, title="Attachment preview")
+        note = TaskNote.objects.create(task=task, content="Review attached brief")
+        DocumentAttachment.objects.create(
+            business=self.business,
+            task_note=note,
+            uploaded_by=self.user,
+            original_filename="brief.pdf",
+            file=SimpleUploadedFile("brief.pdf", b"pdf data", content_type="application/pdf"),
+            content_type="application/pdf",
+            size=8,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("projects:project_detail", args=[self.project.id]))
+
+        self.assertContains(response, "brief.pdf")
+        self.assertContains(response, "note-attachment-list")
+        self.assertContains(response, "cache-attachment")
+
+    def test_save_changes_attaches_file_to_existing_follow_up_note(self):
+        task = Task.objects.create(list=self.task_list, title="Update with file", description="Before")
+        note = TaskNote.objects.create(task=task, content="Original note")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("projects:task_update", args=[task.id]),
+            {
+                "title": "Update with file",
+                "description": "After",
+                "priority": "MEDIUM",
+                "status": "TODO",
+                "list": self.task_list.id,
+                f"note_content_{note.id}": "Edited and attached",
+                f"note_attachments_{note.id}": SimpleUploadedFile("scope.txt", b"scope", content_type="text/plain"),
+            },
+        )
+
+        self.assertRedirects(response, reverse("projects:project_detail", args=[self.project.id]))
+        note.refresh_from_db()
+        self.assertEqual(note.content, "Edited and attached")
+        attachment = note.attachments.get()
+        self.assertEqual(attachment.original_filename, "scope.txt")
+        self.assertEqual(attachment.business, self.business)
+
+    def test_save_changes_attaches_file_to_bottom_new_follow_up_note(self):
+        task = Task.objects.create(list=self.task_list, title="New note with file", description="Before")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("projects:task_update", args=[task.id]),
+            {
+                "title": "New note with file",
+                "description": "After",
+                "priority": "MEDIUM",
+                "status": "TODO",
+                "list": self.task_list.id,
+                "new_note_content": "Added with attachment",
+                "new_note_attachments": SimpleUploadedFile("receipt.jpg", b"image", content_type="image/jpeg"),
+            },
+        )
+
+        self.assertRedirects(response, reverse("projects:project_detail", args=[self.project.id]))
+        note = task.notes.get(content="Added with attachment")
+        self.assertEqual(note.attachments.get().original_filename, "receipt.jpg")
+
+    def test_follow_up_note_ajax_update_can_attach_file(self):
+        task = Task.objects.create(list=self.task_list, title="Ajax file")
+        note = TaskNote.objects.create(task=task, content="Original note")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("projects:task_note_update", args=[note.id]),
+            {
+                "content": "Updated inline",
+                "attachments": SimpleUploadedFile("inline.txt", b"inline", content_type="text/plain"),
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        attachment = note.attachments.get()
+        data = response.json()
+        self.assertTrue(data["success"])
+        self.assertEqual(data["note"]["attachments"][0]["name"], "inline.txt")
+        self.assertEqual(attachment.original_filename, "inline.txt")
 
     def test_follow_up_note_can_be_deleted(self):
         task = Task.objects.create(list=self.task_list, title="Delete note")

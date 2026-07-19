@@ -11,4 +11,6 @@ urlpatterns = [
     path('<int:pk>/delete/', views.document_delete, name='document_delete'),
     path('<int:pk>/pin/', views.document_pin, name='document_pin'),
     path('<int:pk>/toggle-checklist/', views.document_checklist_toggle, name='document_checklist_toggle'),
+    path('attachments/upload/', views.attachment_upload, name='attachment_upload'),
+    path('attachments/<int:attachment_id>/delete/', views.attachment_delete, name='attachment_delete'),
 ]

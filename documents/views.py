@@ -7,15 +7,49 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.urls import reverse
 from core.pinning import apply_pin_state, safe_redirect_target
-from .models import Document
+from .models import Document, DocumentAttachment
 from projects.models import Project
+
+
+def create_attachment(*, business, uploaded_by, file_obj, title='', document=None, task_note=None):
+    return DocumentAttachment.objects.create(
+        business=business,
+        uploaded_by=uploaded_by if uploaded_by.is_authenticated else None,
+        document=document,
+        task_note=task_note,
+        title=title.strip(),
+        file=file_obj,
+        original_filename=file_obj.name,
+        content_type=getattr(file_obj, 'content_type', '') or '',
+        size=getattr(file_obj, 'size', 0) or 0,
+    )
+
+
+def attachment_payload(attachment):
+    return {
+        'id': attachment.id,
+        'name': attachment.display_name,
+        'filename': attachment.original_filename,
+        'url': attachment.file.url,
+        'size': attachment.size_label,
+        'extension': attachment.extension.upper(),
+        'created': attachment.created_at.strftime('%b %d, %Y, %I:%M %p'),
+    }
 
 def document_list(request):
     """
     Renders all saved wiki articles, design documents, and ideas.
     """
     documents = Document.objects.filter(business=request.business).order_by('-is_pinned', '-pinned_at', '-updated_at')
-    return render(request, 'documents/document_list.html', {'documents': documents})
+    attachments = DocumentAttachment.objects.filter(
+        business=request.business,
+        document__isnull=True,
+        task_note__isnull=True,
+    ).select_related('uploaded_by')
+    return render(request, 'documents/document_list.html', {
+        'documents': documents,
+        'attachments': attachments,
+    })
 
 
 def document_detail(request, pk):
@@ -23,7 +57,11 @@ def document_detail(request, pk):
     Server-renders a Document, converting Markdown elements into safe HTML code
     for high-fidelity premium viewing. Parses task lists dynamically.
     """
-    document = get_object_or_404(Document, pk=pk, business=request.business)
+    document = get_object_or_404(
+        Document.objects.prefetch_related('attachments'),
+        pk=pk,
+        business=request.business,
+    )
     
     # Pre-parse task items [ ] and [x] to render styled, interactive checkboxes
     raw_content = document.content
@@ -168,3 +206,33 @@ def document_checklist_toggle(request, pk):
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@require_POST
+def attachment_upload(request):
+    files = request.FILES.getlist('files')
+    title = request.POST.get('title', '')
+    if not files:
+        messages.error(request, "Choose at least one file to upload.")
+        return redirect('documents:document_list')
+
+    for file_obj in files:
+        create_attachment(
+            business=request.business,
+            uploaded_by=request.user,
+            file_obj=file_obj,
+            title=title if len(files) == 1 else '',
+        )
+    messages.success(request, f"Uploaded {len(files)} file{'s' if len(files) != 1 else ''}.")
+    return redirect('documents:document_list')
+
+
+@require_POST
+def attachment_delete(request, attachment_id):
+    attachment = get_object_or_404(DocumentAttachment, pk=attachment_id, business=request.business)
+    attachment.file.delete(save=False)
+    attachment.delete()
+    messages.success(request, "File attachment deleted.")
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'success': True, 'attachment_id': attachment_id})
+    return redirect(safe_redirect_target(request, reverse('documents:document_list')))

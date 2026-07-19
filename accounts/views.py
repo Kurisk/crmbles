@@ -132,8 +132,13 @@ def _would_remove_last_active_manager(user):
     return not get_user_model().objects.filter(is_active=True, profile__role=UserProfile.ROLE_MANAGER).exclude(pk=user.pk).exists()
 
 
+def _normalize_username(username):
+    return (username or "").strip().lower()
+
+
 def _create_workspace_owner(username, email, password, business_name, request=None):
     User = get_user_model()
+    username = _normalize_username(username)
     user = User.objects.create_user(username=username, email=email, password=password, is_active=True)
     try:
         if request:
@@ -162,7 +167,7 @@ def signup_view(request):
         return redirect("core:dashboard")
 
     if request.method == "POST":
-        username = request.POST.get("username", "").strip()
+        username = _normalize_username(request.POST.get("username", ""))
         email = request.POST.get("email", "").strip()
         business_name = request.POST.get("business_name", "").strip()
         password1 = request.POST.get("password1", "")
@@ -205,6 +210,10 @@ def login_view(request):
         return redirect("core:dashboard")
 
     form = AuthenticationForm(request, data=request.POST or None)
+    if request.method == "POST":
+        login_data = request.POST.copy()
+        login_data["username"] = _normalize_username(login_data.get("username", ""))
+        form = AuthenticationForm(request, data=login_data)
     if request.method == "POST" and form.is_valid():
         login(request, form.get_user())
         return redirect(request.GET.get("next") or "core:dashboard")
@@ -224,7 +233,7 @@ def setup_manager(request):
         return redirect("accounts:signup")
 
     if request.method == "POST":
-        username = request.POST.get("username", "").strip()
+        username = _normalize_username(request.POST.get("username", ""))
         email = request.POST.get("email", "").strip()
         business_name = request.POST.get("business_name", "").strip()
         password1 = request.POST.get("password1", "")
@@ -303,7 +312,7 @@ def user_list(request):
 @_manager_required
 def user_create(request):
     User = get_user_model()
-    username = request.POST.get("username", "").strip()
+    username = _normalize_username(request.POST.get("username", ""))
     email = request.POST.get("email", "").strip()
     password = request.POST.get("password", "")
     role = request.POST.get("role", UserProfile.ROLE_USER)
@@ -312,7 +321,7 @@ def user_create(request):
         messages.error(request, "Username and password are required.")
         return redirect("accounts:user_list")
 
-    if User.objects.filter(username=username).exists():
+    if User.objects.filter(username__iexact=username).exists():
         messages.error(request, f"Username '{username}' already exists.")
         return redirect("accounts:user_list")
 
@@ -351,7 +360,14 @@ def user_update(request, user_id):
         messages.error(request, "You cannot remove your own manager role.")
         return redirect("accounts:user_list")
 
-    user.username = request.POST.get("username", user.username).strip()
+    username = _normalize_username(request.POST.get("username", user.username))
+    if not username:
+        messages.error(request, "Username is required.")
+        return redirect("accounts:user_list")
+    if get_user_model().objects.filter(username__iexact=username).exclude(pk=user.pk).exists():
+        messages.error(request, f"Username '{username}' already exists.")
+        return redirect("accounts:user_list")
+    user.username = username
     _save_user_identity(user, request, save=False)
     user.is_active = _boolean_from_post(request, "is_active") or user == request.user
     user.is_staff = role == UserProfile.ROLE_MANAGER

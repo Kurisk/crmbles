@@ -6,6 +6,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.contrib import messages
 from django.urls import reverse
 from core.pinning import apply_pin_state, safe_redirect_target
+from documents.views import attachment_payload, create_attachment
 from .defaults import ensure_default_task_tags
 from .models import Project, TaskList, Task, TaskNote, Tag
 
@@ -74,7 +75,7 @@ def project_detail(request, pk):
     """
     project = get_object_or_404(Project, pk=pk, business=request.business)
     # Prefetch task lists and split board cards into active vs completed.
-    task_lists = list(project.task_lists.all().prefetch_related('tasks__tags', 'tasks__notes'))
+    task_lists = list(project.task_lists.all().prefetch_related('tasks__tags', 'tasks__notes__attachments'))
     for task_list in task_lists:
         tasks = list(task_list.tasks.all())
         task_list.active_tasks = [task for task in tasks if task.status != 'DONE']
@@ -136,7 +137,7 @@ def task_overview(request, status):
         page_title = f'{page_title}: {list_filter.name}'
         empty_message = f'No {task_status} tasks found in {list_filter.name}.'
 
-    tasks = tasks.select_related('list__project').prefetch_related('notes').order_by('list__project__name', 'due_date', '-created_at')
+    tasks = tasks.select_related('list__project').prefetch_related('notes__attachments').order_by('list__project__name', 'due_date', '-created_at')
     grouped_projects = []
     current_project = None
     current_group = None
@@ -296,6 +297,12 @@ def task_update(request, task_id):
             if note_id.isdigit():
                 note_updates.append((int(note_id), _clean_empty_list_markers(value)))
     new_note_content = _clean_empty_list_markers(request.POST.get('new_note_content', ''))
+    note_attachment_files = {}
+    for key, files in request.FILES.lists():
+        if key.startswith('note_attachments_'):
+            note_id = key.removeprefix('note_attachments_')
+            if note_id.isdigit():
+                note_attachment_files[int(note_id)] = files
     
     if not due_date:
         due_date = None
@@ -320,8 +327,22 @@ def task_update(request, task_id):
             if note and note_content:
                 note.content = note_content
                 note.save(update_fields=['content'])
+                for file_obj in note_attachment_files.get(note_id, []):
+                    create_attachment(
+                        business=request.business,
+                        uploaded_by=request.user,
+                        file_obj=file_obj,
+                        task_note=note,
+                    )
         if new_note_content:
-            TaskNote.objects.create(task=task, content=new_note_content)
+            note = TaskNote.objects.create(task=task, content=new_note_content)
+            for file_obj in request.FILES.getlist('new_note_attachments'):
+                create_attachment(
+                    business=request.business,
+                    uploaded_by=request.user,
+                    file_obj=file_obj,
+                    task_note=note,
+                )
         messages.success(request, f"Task '{title}' updated successfully.")
     return _project_detail_redirect(task.list.project.pk, request)
 
@@ -335,6 +356,16 @@ def task_note_create(request, task_id):
     content = _clean_empty_list_markers(request.POST.get('content', ''))
     if content:
         note = TaskNote.objects.create(task=task, content=content)
+        [
+            create_attachment(
+                business=request.business,
+                uploaded_by=request.user,
+                file_obj=file_obj,
+                task_note=note,
+            )
+            for file_obj in request.FILES.getlist('attachments')
+        ]
+        attachments = note.attachments.all()
         messages.success(request, "Follow-up note added.")
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({
@@ -343,6 +374,7 @@ def task_note_create(request, task_id):
                     'id': note.id,
                     'content': note.content,
                     'date': note.created_at.strftime('%b %d, %Y, %I:%M %p'),
+                    'attachments': [attachment_payload(attachment) for attachment in attachments],
                 },
             })
     elif request.headers.get('x-requested-with') == 'XMLHttpRequest':
@@ -357,6 +389,16 @@ def task_note_update(request, note_id):
     if content:
         note.content = content
         note.save(update_fields=['content'])
+        [
+            create_attachment(
+                business=request.business,
+                uploaded_by=request.user,
+                file_obj=file_obj,
+                task_note=note,
+            )
+            for file_obj in request.FILES.getlist('attachments')
+        ]
+        attachments = note.attachments.all()
         messages.success(request, "Follow-up note updated.")
         if request.headers.get('x-requested-with') == 'XMLHttpRequest':
             return JsonResponse({
@@ -365,6 +407,7 @@ def task_note_update(request, note_id):
                     'id': note.id,
                     'content': note.content,
                     'date': note.created_at.strftime('%b %d, %Y, %I:%M %p'),
+                    'attachments': [attachment_payload(attachment) for attachment in attachments],
                 },
             })
     else:

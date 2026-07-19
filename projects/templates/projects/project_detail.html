@@ -204,6 +204,15 @@
                             <span class="task-preview-popover">
                                 <strong>{{ note.created_at|date:"M d, Y, h:i A" }}</strong>
                                 <span>{{ note.content|linebreaksbr }}</span>
+                                {% if note.attachments.all %}
+                                <span class="note-attachment-list">
+                                    {% for attachment in note.attachments.all %}
+                                    <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                                        <i class="fa-solid fa-paperclip"></i> {{ attachment.display_name }}
+                                    </a>
+                                    {% endfor %}
+                                </span>
+                                {% endif %}
                             </span>
                         </span>
                         {% endfor %}
@@ -217,6 +226,15 @@
                                 <span class="task-glance-note" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})">
                                     <span class="task-glance-date">{{ note.created_at|date:"M d, Y, h:i A" }}</span>
                                     <span>{{ note.content|linebreaksbr }}</span>
+                                    {% if note.attachments.all %}
+                                    <span class="note-attachment-list">
+                                        {% for attachment in note.attachments.all %}
+                                        <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                                            <i class="fa-solid fa-paperclip"></i> {{ attachment.display_name }}
+                                        </a>
+                                        {% endfor %}
+                                    </span>
+                                    {% endif %}
                                 </span>
                                 {% endfor %}
                             </span>
@@ -275,7 +293,12 @@
                     <!-- Hidden notes cache -->
                     <div class="task-notes-cache" style="display: none;">
                         {% for note in task.notes.all %}
-                        <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                        <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">
+                            <span class="cache-note-content">{{ note.content }}</span>
+                            {% for attachment in note.attachments.all %}
+                            <span class="cache-attachment" data-id="{{ attachment.id }}" data-name="{{ attachment.display_name }}" data-url="{{ attachment.file.url }}" data-size="{{ attachment.size_label }}" data-extension="{{ attachment.extension|upper }}"></span>
+                            {% endfor %}
+                        </div>
                         {% endfor %}
                     </div>
                 </div>
@@ -381,7 +404,12 @@
                             <span class="task-label {% if task.status == 'DONE' %}completed-item{% endif %}" id="task-text-{{ task.id }}">{{ task.title }}</span>
                             <div class="task-notes-cache" style="display: none;">
                                 {% for note in task.notes.all %}
-                                <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                                <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">
+                                    <span class="cache-note-content">{{ note.content }}</span>
+                                    {% for attachment in note.attachments.all %}
+                                    <span class="cache-attachment" data-id="{{ attachment.id }}" data-name="{{ attachment.display_name }}" data-url="{{ attachment.file.url }}" data-size="{{ attachment.size_label }}" data-extension="{{ attachment.extension|upper }}"></span>
+                                    {% endfor %}
+                                </div>
                                 {% endfor %}
                             </div>
                             {% if task.notes_for_cards or task.link_previews %}
@@ -393,6 +421,15 @@
                                     <span class="task-preview-popover">
                                         <strong>{{ note.created_at|date:"M d, Y, h:i A" }}</strong>
                                         <span>{{ note.content|linebreaksbr }}</span>
+                                        {% if note.attachments.all %}
+                                        <span class="note-attachment-list">
+                                            {% for attachment in note.attachments.all %}
+                                            <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                                                <i class="fa-solid fa-paperclip"></i> {{ attachment.display_name }}
+                                            </a>
+                                            {% endfor %}
+                                        </span>
+                                        {% endif %}
                                     </span>
                                 </span>
                                 {% endfor %}
@@ -406,6 +443,15 @@
                                         <span class="task-glance-note" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})">
                                             <span class="task-glance-date">{{ note.created_at|date:"M d, Y, h:i A" }}</span>
                                             <span>{{ note.content|linebreaksbr }}</span>
+                                            {% if note.attachments.all %}
+                                            <span class="note-attachment-list">
+                                                {% for attachment in note.attachments.all %}
+                                                <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                                                    <i class="fa-solid fa-paperclip"></i> {{ attachment.display_name }}
+                                                </a>
+                                                {% endfor %}
+                                            </span>
+                                            {% endif %}
                                         </span>
                                         {% endfor %}
                                     </span>
@@ -506,7 +552,12 @@
                             <span class="task-label completed-item" id="task-text-{{ task.id }}">{{ task.title }}</span>
                             <div class="task-notes-cache" style="display: none;">
                                 {% for note in task.notes.all %}
-                                <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">{{ note.content }}</div>
+                                <div class="cache-note" data-note-id="{{ note.id }}" data-date="{{ note.created_at|date:'M d, Y, h:i A' }}">
+                                    <span class="cache-note-content">{{ note.content }}</span>
+                                    {% for attachment in note.attachments.all %}
+                                    <span class="cache-attachment" data-id="{{ attachment.id }}" data-name="{{ attachment.display_name }}" data-url="{{ attachment.file.url }}" data-size="{{ attachment.size_label }}" data-extension="{{ attachment.extension|upper }}"></span>
+                                    {% endfor %}
+                                </div>
                                 {% endfor %}
                             </div>
                             {% if task.notes_for_cards or task.link_previews %}
@@ -518,6 +569,15 @@
                                     <span class="task-preview-popover">
                                         <strong>{{ note.created_at|date:"M d, Y, h:i A" }}</strong>
                                         <span>{{ note.content|linebreaksbr }}</span>
+                                        {% if note.attachments.all %}
+                                        <span class="note-attachment-list">
+                                            {% for attachment in note.attachments.all %}
+                                            <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                                                <i class="fa-solid fa-paperclip"></i> {{ attachment.display_name }}
+                                            </a>
+                                            {% endfor %}
+                                        </span>
+                                        {% endif %}
                                     </span>
                                 </span>
                                 {% endfor %}
@@ -531,6 +591,15 @@
                                         <span class="task-glance-note" data-note-id="{{ note.id }}" onclick="openTaskNoteFromElement(event, this, {{ note.id }})">
                                             <span class="task-glance-date">{{ note.created_at|date:"M d, Y, h:i A" }}</span>
                                             <span>{{ note.content|linebreaksbr }}</span>
+                                            {% if note.attachments.all %}
+                                            <span class="note-attachment-list">
+                                                {% for attachment in note.attachments.all %}
+                                                <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+                                                    <i class="fa-solid fa-paperclip"></i> {{ attachment.display_name }}
+                                                </a>
+                                                {% endfor %}
+                                            </span>
+                                            {% endif %}
                                         </span>
                                         {% endfor %}
                                     </span>
@@ -711,7 +780,7 @@
         </div>
         
         <!-- Editable Task Form -->
-        <form id="editTaskForm" method="POST" action="">
+        <form id="editTaskForm" method="POST" action="" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="return_view" class="return-view-input" value="board">
             <div id="editTaskNoteSync" style="display: none;"></div>
@@ -814,7 +883,7 @@
             </div>
             
             <!-- Add follow up note form -->
-            <form id="addTaskNoteForm" method="POST" action="" style="margin-top: 16px;">
+            <form id="addTaskNoteForm" method="POST" action="" enctype="multipart/form-data" style="margin-top: 16px;">
                 {% csrf_token %}
                 <div class="form-group" style="margin-bottom: 8px;">
                     <div class="text-format-toolbar" aria-label="Follow-up note list formatting">
@@ -826,6 +895,10 @@
                         </button>
                     </div>
                     <textarea class="form-control auto-list-textarea" name="content" id="taskNoteContent" required placeholder="Type follow-up update, timeline note, or progress details here..." rows="4" style="font-size: 0.85rem; padding: 8px 12px;"></textarea>
+                </div>
+                <div class="note-attachment-field">
+                    <label for="taskNoteFiles" class="form-label" style="font-size: 0.75rem;">Attach files</label>
+                    <input type="file" class="form-control" id="taskNoteFiles" name="new_note_attachments" multiple form="editTaskForm">
                 </div>
                 <div style="display: flex; justify-content: flex-end;">
                     <button type="submit" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; padding: 6px 14px;">
@@ -1076,12 +1149,68 @@
         }
     });
 
-    function updateNoteCache(noteId, content, date) {
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value || '';
+        return div.innerHTML;
+    }
+
+    function noteAttachmentsFromCache(cacheNote) {
+        return Array.from(cacheNote.querySelectorAll('.cache-attachment')).map(attachment => ({
+            id: attachment.dataset.id,
+            name: attachment.dataset.name,
+            url: attachment.dataset.url,
+            size: attachment.dataset.size,
+            extension: attachment.dataset.extension
+        }));
+    }
+
+    function noteAttachmentMarkup(attachment) {
+        return `
+            <a href="${escapeHtml(attachment.url)}" target="_blank" rel="noopener">
+                <i class="fa-solid fa-paperclip"></i>
+                <span>${escapeHtml(attachment.name || 'Attachment')}</span>
+                ${attachment.size ? `<small>${escapeHtml(attachment.size)}</small>` : ''}
+            </a>
+        `;
+    }
+
+    function renderNoteAttachments(container, attachments) {
+        if (!container) return;
+        const files = attachments || [];
+        container.innerHTML = files.length
+            ? files.map(noteAttachmentMarkup).join('')
+            : '<span class="note-attachment-empty">No files attached yet.</span>';
+    }
+
+    function appendAttachmentsToCache(cacheNote, attachments) {
+        (attachments || []).forEach(attachment => {
+            if (!attachment.id || cacheNote.querySelector(`.cache-attachment[data-id="${attachment.id}"]`)) return;
+            const marker = document.createElement('span');
+            marker.className = 'cache-attachment';
+            marker.dataset.id = attachment.id;
+            marker.dataset.name = attachment.name || 'Attachment';
+            marker.dataset.url = attachment.url || '';
+            marker.dataset.size = attachment.size || '';
+            marker.dataset.extension = attachment.extension || 'FILE';
+            cacheNote.appendChild(marker);
+        });
+    }
+
+    function updateNoteCache(noteId, content, date, attachments = []) {
         document.querySelectorAll(`.task-notes-cache .cache-note[data-note-id="${noteId}"]`).forEach(cacheNote => {
-            cacheNote.textContent = content;
+            let contentElement = cacheNote.querySelector('.cache-note-content');
+            if (!contentElement) {
+                contentElement = document.createElement('span');
+                contentElement.className = 'cache-note-content';
+                cacheNote.innerHTML = '';
+                cacheNote.appendChild(contentElement);
+            }
+            contentElement.textContent = content;
             if (date) {
                 cacheNote.dataset.date = date;
             }
+            appendAttachmentsToCache(cacheNote, attachments);
         });
     }
 
@@ -1117,13 +1246,21 @@
             textarea.value = textareaValueForSave(textarea);
         }
 
+        const formData = new FormData(form);
+        const fileInput = form.id === 'addTaskNoteForm'
+            ? document.getElementById('taskNoteFiles')
+            : form.querySelector('input[type="file"]');
+        if (fileInput) {
+            Array.from(fileInput.files || []).forEach(file => formData.append('attachments', file));
+        }
+
         return fetch(form.action, {
             method: 'POST',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
                 'X-CSRFToken': '{{ csrf_token }}'
             },
-            body: new FormData(form)
+            body: formData
         })
         .then(response => {
             if (!response.ok) {
@@ -1141,10 +1278,12 @@
                 const emptyState = notesContainer ? notesContainer.querySelector('span[style*="italic"]') : null;
                 if (emptyState) emptyState.remove();
                 if (notesContainer) {
-                    notesContainer.appendChild(buildEditableNoteForm(data.note.id, data.note.date, data.note.content));
+                    notesContainer.appendChild(buildEditableNoteForm(data.note.id, data.note.date, data.note.content, data.note.attachments || []));
                 }
             }
-            updateNoteCache(data.note.id, data.note.content, data.note.date);
+            renderNoteAttachments(form.querySelector('[data-note-attachments]'), data.note.attachments || []);
+            if (fileInput) fileInput.value = '';
+            updateNoteCache(data.note.id, data.note.content, data.note.date, data.note.attachments || []);
             setNoteSaveState(form, '<i class="fa-solid fa-check"></i> Saved');
             return true;
         })
@@ -1199,10 +1338,11 @@
         }
     });
 
-    function buildEditableNoteForm(noteId, date, content) {
+    function buildEditableNoteForm(noteId, date, content, attachments = []) {
         const form = document.createElement('form');
         form.method = 'POST';
         form.action = `/projects/tasks/notes/${noteId}/update/`;
+        form.enctype = 'multipart/form-data';
         form.className = 'editable-note-card';
         form.dataset.noteId = noteId;
         form.innerHTML = `
@@ -1221,6 +1361,11 @@
                 </button>
             </div>
             <textarea class="form-control auto-list-textarea" id="taskNoteEdit-${noteId}" name="content" rows="4"></textarea>
+            <div class="note-attachment-list note-attachment-list-inline" data-note-attachments></div>
+            <div class="note-attachment-field">
+                <label for="taskNoteFiles-${noteId}" class="form-label" style="font-size: 0.75rem;">Attach files</label>
+                <input type="file" class="form-control" id="taskNoteFiles-${noteId}" name="note_attachments_${noteId}" multiple form="editTaskForm">
+            </div>
             <div class="editable-note-card-actions">
                 <button type="button" class="btn btn-danger btn-sm" onclick="deleteNoteInModal(${noteId}, this)">
                     <i class="fa-regular fa-trash-can"></i> Delete Note
@@ -1231,6 +1376,7 @@
             </div>
         `;
         form.querySelector('textarea').value = content;
+        renderNoteAttachments(form.querySelector('[data-note-attachments]'), attachments);
         return form;
     }
 
@@ -1460,10 +1606,10 @@
             notesContainer.innerHTML = '<span style="color: var(--text-muted); font-style: italic; font-size: 0.85rem;">No follow-up notes recorded yet.</span>';
         } else {
             notesCache.forEach(note => {
-                const content = note.innerText;
+                const content = note.querySelector('.cache-note-content')?.innerText || note.innerText;
                 const date = note.dataset.date;
                 const noteId = note.dataset.noteId;
-                notesContainer.appendChild(buildEditableNoteForm(noteId, date, content));
+                notesContainer.appendChild(buildEditableNoteForm(noteId, date, content, noteAttachmentsFromCache(note)));
             });
         }
         

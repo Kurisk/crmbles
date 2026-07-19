@@ -82,6 +82,15 @@ Tasks grouped by their project board and original list column.
                             <span class="task-preview-popover">
                                 <strong>{{ note.created_at|date:"M d, Y, h:i A" }}</strong>
                                 <span>{{ note.content|linebreaksbr }}</span>
+                                {% if note.attachments.all %}
+                                <span class="note-attachment-list">
+                                    {% for attachment in note.attachments.all %}
+                                    <a href="{{ attachment.file.url }}" target="_blank" rel="noopener">
+                                        <i class="fa-solid fa-paperclip"></i> {{ attachment.display_name }}
+                                    </a>
+                                    {% endfor %}
+                                </span>
+                                {% endif %}
                             </span>
                         </span>
                         {% endfor %}
@@ -95,6 +104,15 @@ Tasks grouped by their project board and original list column.
                                 <span class="task-glance-note">
                                     <span class="task-glance-date">{{ note.created_at|date:"M d, Y, h:i A" }}</span>
                                     <span>{{ note.content|linebreaksbr }}</span>
+                                    {% if note.attachments.all %}
+                                    <span class="note-attachment-list">
+                                        {% for attachment in note.attachments.all %}
+                                        <a href="{{ attachment.file.url }}" target="_blank" rel="noopener">
+                                            <i class="fa-solid fa-paperclip"></i> {{ attachment.display_name }}
+                                        </a>
+                                        {% endfor %}
+                                    </span>
+                                    {% endif %}
                                 </span>
                                 {% endfor %}
                             </span>

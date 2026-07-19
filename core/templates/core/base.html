@@ -18,8 +18,13 @@
         <!-- Sidebar Navigation Shell -->
         <aside class="sidebar" id="appSidebar">
             <div class="sidebar-logo">
-                <div class="logo-icon">C</div>
-                <span class="logo-text">CRMbles</span>
+                <div style="display: flex; align-items: center; min-width: 0;">
+                    <div class="logo-icon">C</div>
+                    <span class="logo-text">CRMbles</span>
+                </div>
+                <button type="button" class="sidebar-close-btn" aria-label="Collapse menu" onclick="closeMobileSidebar()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
             
             <ul class="sidebar-menu">
@@ -111,11 +116,15 @@
                 </div>
             </div>
         </aside>
+        <button type="button" class="sidebar-scrim" aria-label="Collapse menu" onclick="closeMobileSidebar()"></button>
 
         <!-- Main Workspace Panel -->
         <div class="main-wrapper" id="mainWrapper">
             <!-- Top Glassmorphic Navigation Bar -->
             <header class="top-header">
+                <button type="button" class="mobile-sidebar-toggle" aria-label="Open menu" aria-controls="appSidebar" aria-expanded="false" onclick="toggleMobileSidebar()">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
                 <div class="header-title-section">
                     <h1 class="header-title">{% block header_title %}Dashboard{% endblock %}</h1>
                     <span class="header-subtitle">{% if active_business %}{{ active_business }} &middot; {% endif %}{% block header_subtitle %}Welcome back to your workspace.{% endblock %}</span>
@@ -183,6 +192,35 @@
                 icon.classList.toggle('fa-eye-slash', isHidden);
             }
         }
+
+        function setMobileSidebar(open) {
+            document.body.classList.toggle('sidebar-open', open);
+            const button = document.querySelector('.mobile-sidebar-toggle');
+            if (button) {
+                button.setAttribute('aria-expanded', open ? 'true' : 'false');
+                button.setAttribute('aria-label', open ? 'Collapse menu' : 'Open menu');
+            }
+        }
+
+        function toggleMobileSidebar() {
+            setMobileSidebar(!document.body.classList.contains('sidebar-open'));
+        }
+
+        function closeMobileSidebar() {
+            setMobileSidebar(false);
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                closeMobileSidebar();
+            }
+        });
+
+        document.addEventListener('click', event => {
+            if (event.target.closest('.sidebar-item a') && window.matchMedia('(max-width: 900px)').matches) {
+                closeMobileSidebar();
+            }
+        });
     </script>
     {% block extra_js %}{% endblock %}
 </body>

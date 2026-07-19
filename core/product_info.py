@@ -1,15 +1,15 @@
-APP_VERSION = "0.2.2"
+APP_VERSION = "0.2.4"
 SUPPORT_EMAIL = "dowitzgame@gmail.com"
 
 LATEST_UPDATE = {
-    "title": "Project Notes And Link Preview Refresh",
+    "title": "Mobile Sidebar And File Attachments",
     "date": "July 18, 2026",
-    "summary": "Project boards now have clearer task notes, editable follow-up notes, and labeled link previews.",
+    "summary": "CRMbles now has a cleaner mobile navigation shell plus file uploads and note attachments.",
     "items": [
-        "Added editable follow-up notes with save and delete actions that stay inside the task window.",
-        "Added bullet and numbered list helpers for task and note entry, including automatic continuation.",
-        "Added card-level note chips, Notes Glance, and link chips tied back to their source note.",
-        "Updated the stylesheet version so browsers load the newest project-board layout.",
+        "Added a mobile menu button that opens and collapses the sidebar without squeezing the workspace.",
+        "Added a File Library to Documents and Ideas for standalone workspace uploads.",
+        "Added file attachments to follow-up notes, including support for Save Note and Save Changes.",
+        "Added attached file links to note hover previews, Notes Glance, and the task note editor.",
     ],
 }
 

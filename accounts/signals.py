@@ -1,8 +1,14 @@
 from django.contrib.auth import get_user_model
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
 from .models import Business, BusinessMembership, UserProfile
+
+
+@receiver(pre_save, sender=get_user_model())
+def normalize_username(sender, instance, **kwargs):
+    if instance.username:
+        instance.username = instance.username.strip().lower()
 
 
 @receiver(post_save, sender=get_user_model())

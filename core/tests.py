@@ -67,6 +67,22 @@ class DashboardMetricLinkTests(TestCase):
         self.assertContains(response, reverse("clients:client_list"))
         self.assertNotContains(response, reverse("vendors:vendor_list"))
 
+    def test_authenticated_shell_has_mobile_sidebar_controls(self):
+        User = get_user_model()
+        business = Business.objects.create(name="Mobile Sidebar Workspace")
+        user = User.objects.create_user(username="mobile-shell-user", password="StrongPass123!")
+        BusinessMembership.objects.create(user=user, business=business, can_access_projects=True)
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("core:dashboard"))
+
+        self.assertContains(response, 'class="mobile-sidebar-toggle"')
+        self.assertContains(response, 'aria-controls="appSidebar"')
+        self.assertContains(response, 'class="sidebar-close-btn"')
+        self.assertContains(response, 'class="sidebar-scrim"')
+        self.assertContains(response, "toggleMobileSidebar")
+        self.assertContains(response, "closeMobileSidebar")
+
 
 class PublicProductInfoTests(TestCase):
     def test_faq_page_has_search_contact_and_footer_links(self):

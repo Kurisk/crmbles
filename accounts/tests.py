@@ -39,6 +39,34 @@ class SignupFlowTests(TestCase):
         self.assertTrue(membership.can_access_finance)
         self.assertTrue(membership.can_manage_accounts)
 
+    def test_signup_lowercases_username(self):
+        response = self.client.post(
+            reverse("accounts:signup"),
+            {
+                "business_name": "Case Desk",
+                "username": "NewOwner",
+                "email": "owner@example.com",
+                "password1": "StrongPass123!",
+                "password2": "StrongPass123!",
+            },
+        )
+
+        self.assertRedirects(response, reverse("core:dashboard"))
+        self.assertTrue(get_user_model().objects.filter(username="newowner").exists())
+        self.assertFalse(get_user_model().objects.filter(username="NewOwner").exists())
+
+    def test_login_lowercases_submitted_username(self):
+        User = get_user_model()
+        User.objects.create_user(username="caseuser", password="StrongPass123!")
+
+        response = self.client.post(
+            reverse("accounts:login"),
+            {"username": "CaseUser", "password": "StrongPass123!"},
+        )
+
+        self.assertRedirects(response, reverse("core:dashboard"))
+        self.assertEqual(int(self.client.session["_auth_user_id"]), User.objects.get(username="caseuser").id)
+
 
 class ProfileFlowTests(TestCase):
     def setUp(self):
@@ -226,3 +254,31 @@ class AccountManagerAccessTests(TestCase):
         self.assertRedirects(response, reverse("accounts:user_list"))
         target_manager.refresh_from_db()
         self.assertTrue(target_manager.is_active)
+
+    def test_manager_created_username_is_lowercase(self):
+        response = self.client.post(
+            reverse("accounts:user_create"),
+            {
+                "username": "NewTeammate",
+                "password": "StrongPass123!",
+                "role": UserProfile.ROLE_USER,
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("accounts:user_list"))
+        self.assertTrue(get_user_model().objects.filter(username="newteammate").exists())
+
+    def test_manager_updated_username_is_lowercase(self):
+        response = self.client.post(
+            reverse("accounts:user_update", args=[self.user.id]),
+            {
+                "username": "UpdatedUser",
+                "role": UserProfile.ROLE_USER,
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, reverse("accounts:user_list"))
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "updateduser")

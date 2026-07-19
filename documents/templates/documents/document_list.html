@@ -12,6 +12,57 @@
 {% endblock %}
 
 {% block content %}
+<div class="card" style="margin-bottom: 24px; padding: 20px 24px; background-color: rgba(15, 21, 36, 0.42);">
+    <div style="display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; flex-wrap: wrap;">
+        <div>
+            <h2 class="card-title" style="font-size: 1.05rem; margin-bottom: 6px;">
+                <i class="fa-solid fa-paperclip" style="color: var(--primary); margin-right: 8px;"></i>
+                File Library
+            </h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Upload reference files, receipts, images, PDFs, and other workspace assets.</p>
+        </div>
+        <form action="{% url 'documents:attachment_upload' %}" method="POST" enctype="multipart/form-data" style="display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.2fr) auto; gap: 10px; align-items: end; flex: 1; min-width: min(100%, 620px);">
+            {% csrf_token %}
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="attachmentTitle" class="form-label" style="font-size: 0.75rem;">Display name</label>
+                <input type="text" class="form-control" id="attachmentTitle" name="title" placeholder="Optional for one file" style="margin-bottom: 0;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label for="attachmentFiles" class="form-label" style="font-size: 0.75rem;">Files</label>
+                <input type="file" class="form-control" id="attachmentFiles" name="files" multiple required style="margin-bottom: 0;">
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload
+            </button>
+        </form>
+    </div>
+
+    {% if attachments %}
+    <div class="attachment-list" style="margin-top: 18px;">
+        {% for attachment in attachments %}
+        <div class="attachment-row" style="display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.05);">
+            <span class="attachment-icon">
+                <i class="fa-regular fa-file"></i>
+            </span>
+            <div style="min-width: 0;">
+                <a href="{{ attachment.file.url }}" target="_blank" rel="noopener" style="font-weight: 700;">{{ attachment.display_name }}</a>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">
+                    {{ attachment.extension|upper }} &middot; {{ attachment.size_label }} &middot; Uploaded {{ attachment.created_at|date:"M d, Y, h:i A" }}
+                </div>
+            </div>
+            <form action="{% url 'documents:attachment_delete' attachment.id %}" method="POST" onsubmit="return confirm('Delete this uploaded file?');" style="margin: 0;">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-danger btn-sm" title="Delete {{ attachment.display_name }}" aria-label="Delete {{ attachment.display_name }}">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
 <div class="card" style="margin-bottom: 32px; padding: 20px 24px; background-color: rgba(15, 21, 36, 0.4);">
     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
         <span style="font-size: 0.95rem; font-weight: 600; color: var(--text-secondary);">
